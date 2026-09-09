@@ -15,8 +15,9 @@ from .core.logging import setup_logging
 from .core.tenancy import get_current_tenant_id, verify_tenant_access
 from .db.repository import PipelineRepository
 from .db.session import init_db
-from .models import AgentBlueprint, AgentSpec
+from .models import AgentBlueprint, AgentSpec, ChatRequest, ChatResponse
 from .services.forge_service import ForgeService
+from .services.runtime_service import AgentRuntimeService
 
 setup_logging()
 
@@ -146,6 +147,22 @@ async def get_blueprint_endpoint(
         raise HTTPException(status_code=404, detail="Blueprint not found")
     verify_tenant_access(bp.tenant_id, tenant_id)
     return bp
+
+# Minimal Agent Runtime Chat Endpoint
+@app.post("/api/agents/{blueprint_id}/chat", response_model=ChatResponse)
+async def agent_chat_endpoint(
+    blueprint_id: str,
+    req: ChatRequest,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+    service = AgentRuntimeService(repo=repo)
+    return await service.chat(blueprint_id=blueprint_id, request=req)
+
 
 if __name__ == "__main__":
     import uvicorn

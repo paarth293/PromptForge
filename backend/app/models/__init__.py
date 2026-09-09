@@ -6,6 +6,7 @@ from .dossier import AgentDossier
 from .harden import HardeningLog, PatchEntry
 from .playbook import AdversarialPlaybookEntry
 from .redteam import AttackVerdict, RedTeamReport
+from .runtime import ChatMessage, ChatRequest, ChatResponse, SimulatedToolCall
 from .shield import PolicyObject
 from .spec import AgentSpec, Capability
 from .test_set import GeneratedTestSuite, TestCase
@@ -31,4 +32,9 @@ __all__ = [
     "AgentDossier",
     "GeneratedTestSuite",
     "TestCase",
+    "ChatMessage",
+    "SimulatedToolCall",
+    "ChatRequest",
+    "ChatResponse",
 ]
+

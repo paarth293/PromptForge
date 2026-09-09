@@ -1,0 +1,25 @@
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, Field
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user", "assistant", "system", "tool"
+    content: str
+
+class SimulatedToolCall(BaseModel):
+    tool_name: str
+    parameters: Dict[str, Any] = Field(default_factory=dict)
+    output: Dict[str, Any] = Field(default_factory=dict)
+
+class ChatRequest(BaseModel):
+    message: str
+    history: List[ChatMessage] = Field(default_factory=list)
+    session_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+    session_id: str
+    response: str
+    tool_calls: List[SimulatedToolCall] = Field(default_factory=list)
+    blocked: bool = False
+    guardrail_triggered: Optional[str] = None
