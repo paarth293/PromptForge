@@ -1,4 +1,4 @@
-﻿import hashlib
+import hashlib
 import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
@@ -18,21 +18,25 @@ def compute_blueprint_canonical_hash(bp: AgentBlueprint) -> str:
     if bp.applied_patches:
         content = {
             "spec_id": bp.spec_id,
-            "system_prompt": bp.system_prompt,
-            "tools": [t.model_dump() for t in bp.tools],
-            "guardrails": [g.model_dump() for g in bp.guardrails],
-            "few_shot_examples": [f.model_dump() for f in bp.few_shot_examples],
-            "patches": [p.model_dump() for p in bp.applied_patches],
             "version": bp.version,
+            "agent_name": bp.agent_name,
+            "system_prompt": bp.system_prompt,
+            "tools": [t.model_dump(mode="json") for t in bp.tools],
+            "guardrails": [g.model_dump(mode="json") for g in bp.guardrails],
+            "few_shot_examples": [f.model_dump(mode="json") for f in bp.few_shot_examples],
+            "provenance_watermark": bp.provenance_watermark,
+            "applied_patches": [p.model_dump(mode="json") for p in bp.applied_patches],
         }
     else:
         content = {
             "spec_id": bp.spec_id,
+            "tenant_id": bp.tenant_id,
+            "agent_name": bp.agent_name,
             "system_prompt": bp.system_prompt,
-            "tools": [t.model_dump() for t in bp.tools],
-            "guardrails": [g.model_dump() for g in bp.guardrails],
-            "few_shot_examples": [f.model_dump() for f in bp.few_shot_examples],
-            "watermark": bp.provenance_watermark,
+            "tools": [t.model_dump(mode="json") for t in bp.tools],
+            "guardrails": [g.model_dump(mode="json") for g in bp.guardrails],
+            "few_shot_examples": [f.model_dump(mode="json") for f in bp.few_shot_examples],
+            "provenance_watermark": bp.provenance_watermark,
         }
     return compute_sha256(content)
 
@@ -41,6 +45,7 @@ def compute_redteam_report_hash(report: RedTeamReport) -> str:
     """Recomputes the canonical SHA-256 hash of a RedTeamReport."""
     report_payload = {
         "blueprint_id": report.blueprint_id,
+        "tenant_id": report.tenant_id,
         "total_attacks": report.total_attacks,
         "blocked_count": report.blocked_count,
         "degraded_count": report.degraded_count,
