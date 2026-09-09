@@ -3,11 +3,12 @@ import logging
 from typing import List, Optional
 
 from ..core.guardrail_prober import validate_guardrail_with_probes
+from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
-from ..models.blueprint import FewShotConversation, FewShotMessage, Guardrail, ToolSchema
+from ..models.blueprint import AgentBlueprint, FewShotConversation, FewShotMessage, Guardrail, ToolSchema
 from ..models.chain_outputs import (
     FewShotExamplesOutput,
     GuardrailsOutput,
@@ -228,6 +229,71 @@ class ForgeService:
             ))
         logger.info(f"Generated {len(conversations)} few-shot exemplar conversations for spec {spec.spec_id}.")
         return conversations
+
+    async def assemble_blueprint(
+        self,
+        spec: AgentSpec,
+        model: str = "gpt-4o"
+    ) -> AgentBlueprint:
+        """
+        Combines outputs of Chains 2–5 into one persisted AgentBlueprint with cryptographic SHA-256 fingerprint.
+        1. Chain 2: CRISPE System Prompt
+        2. Chain 3: OpenAI-compatible Tool Schemas
+        3. Chain 4: Two-layer Guardrails with unit probe validation
+        4. Chain 5: Canonical Few-Shot Exemplars
+        5. Fold exemplars into system prompt
+        6. Compute blueprint hash
+        7. Persist blueprint in database
+        """
+        # 1. Chain 2: System Prompt
+        sys_prompt_output = await self.generate_system_prompt(spec, model=model)
+
+        # 2. Chain 3: Tool Schemas
+        tools = await self.generate_tools(spec, model=model)
+
+        # 3. Chain 4: Two-layer Guardrails
+        guardrails = await self.generate_guardrails(spec, model=model)
+
+        # 4. Chain 5: Few-Shot Examples
+        few_shots = await self.generate_few_shot_examples(spec, model=model)
+
+        # 5. Fold few-shot examples into the system prompt
+        exemplars_block = format_few_shot_examples_block(few_shots)
+        assembled_system_prompt = f"{sys_prompt_output.system_prompt.strip()}\n{exemplars_block}"
+
+        # 6. Build Blueprint
+        blueprint = AgentBlueprint(
+            spec_id=spec.spec_id,
+            tenant_id=spec.tenant_id,
+            agent_name=spec.agent_name,
+            system_prompt=assembled_system_prompt,
+            tools=tools,
+            guardrails=guardrails,
+            few_shot_examples=few_shots,
+            provenance_watermark="built-with-promptforge-v1"
+        )
+
+        # 7. Compute deterministic SHA-256 hash
+        blueprint_content = {
+            "spec_id": blueprint.spec_id,
+            "tenant_id": blueprint.tenant_id,
+            "agent_name": blueprint.agent_name,
+            "system_prompt": blueprint.system_prompt,
+            "tools": [t.model_dump() for t in blueprint.tools],
+            "guardrails": [g.model_dump() for g in blueprint.guardrails],
+            "few_shot_examples": [f.model_dump() for f in blueprint.few_shot_examples],
+            "provenance_watermark": blueprint.provenance_watermark
+        }
+        blueprint.blueprint_hash = compute_sha256(blueprint_content)
+
+        # 8. Persist to DB
+        await self.repo.save_blueprint(blueprint)
+        logger.info(
+            f"Assembled and persisted blueprint {blueprint.blueprint_id} "
+            f"for spec {spec.spec_id} with hash {blueprint.blueprint_hash}"
+        )
+        return blueprint
+
 
 
 def format_few_shot_examples_block(examples: List[FewShotConversation]) -> str:

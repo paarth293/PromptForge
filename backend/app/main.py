@@ -87,6 +87,21 @@ async def confirm_spec_endpoint(
     confirmed = await service.confirm_spec(spec)
     return confirmed
 
+@app.post("/api/forge/assemble/{spec_id}", response_model=AgentBlueprint)
+async def assemble_blueprint_endpoint(
+    spec_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    spec = await repo.get_spec(spec_id)
+    if not spec:
+        raise HTTPException(status_code=404, detail="Spec not found")
+    verify_tenant_access(spec.tenant_id, tenant_id)
+    service = ForgeService(repo=repo)
+    blueprint = await service.assemble_blueprint(spec)
+    return blueprint
+
+
 # Spec and Blueprint Endpoints
 @app.get("/api/specs/{spec_id}", response_model=AgentSpec)
 async def get_spec_endpoint(
