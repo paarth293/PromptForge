@@ -20,6 +20,7 @@ import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
 import RedTeamFeed from '../components/RedTeamFeed';
 import HardeningLogView, { HardeningLogData } from '../components/HardeningLogView';
 import VerificationScorecardView, { VerificationScorecardData } from '../components/VerificationScorecardView';
+import AuditModeEntry from '../components/AuditModeEntry';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -27,6 +28,7 @@ type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' |
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
+  const [pipelineMode, setPipelineMode] = useState<'forge' | 'audit'>('forge');
   const [promptInput, setPromptInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -213,6 +215,19 @@ export default function HomePage() {
     }
   };
 
+  const handleAuditComplete = (result: {
+    blueprint: BlueprintInfo;
+    scorecard: VerificationScorecardData;
+    hardeningLog: HardeningLogData | null;
+    birthCertificateId: string;
+  }) => {
+    setBlueprint(result.blueprint);
+    setScorecard(result.scorecard);
+    setHardeningLog(result.hardeningLog);
+    setStage('verify');
+    setLoading(false);
+  };
+
   const handleReset = () => {
     setStage('input');
     setPromptInput('');
@@ -243,35 +258,63 @@ export default function HomePage() {
         </div>
 
         {/* Stage Breadcrumb */}
-        <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-400">
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'input' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
-            1. Describe
-          </span>
-          <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'confirm_spec' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
-            2. Confirm Spec
-          </span>
-          <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'assembling' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
-            3. Forge
-          </span>
-          <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'chat' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
-            4. Live Chat
-          </span>
-          <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'redteam' ? 'bg-red-600 text-white' : 'bg-[#151C2C]'}`}>
-            5. Red Team
-          </span>
-          <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'harden' ? 'bg-amber-600 text-white' : 'bg-[#151C2C]'}`}>
-            6. Harden
-          </span>
-          <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'verify' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
-            7. Verify
-          </span>
-        </div>
+        {pipelineMode === 'forge' ? (
+          <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-400">
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'input' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
+              1. Describe
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'confirm_spec' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
+              2. Confirm Spec
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'assembling' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
+              3. Forge
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'chat' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
+              4. Live Chat
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'redteam' ? 'bg-red-600 text-white' : 'bg-[#151C2C]'}`}>
+              5. Red Team
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'harden' ? 'bg-amber-600 text-white' : 'bg-[#151C2C]'}`}>
+              6. Harden
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'verify' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
+              7. Verify
+            </span>
+          </div>
+        ) : (
+          <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-400">
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'input' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
+              1. Ingest Agent
+            </span>
+            <span>→</span>
+            <span className="px-2 py-0.5 rounded text-[10px] uppercase font-mono bg-slate-800/80 text-slate-400 line-through">
+              Forge: Bypassed
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'redteam' ? 'bg-red-600 text-white' : 'bg-[#151C2C]'}`}>
+              2. Red Team
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'harden' ? 'bg-amber-600 text-white' : 'bg-[#151C2C]'}`}>
+              3. Harden
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'verify' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
+              4. Verify & Certify
+            </span>
+            <span>→</span>
+            <span className={`px-2.5 py-1 rounded-lg ${stage === 'chat' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
+              5. Live Chat
+            </span>
+          </div>
+        )}
       </header>
 
       {/* Main Content Area */}
@@ -283,8 +326,44 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* STAGE 1: Natural Language Prompt Input */}
+        {/* First-Class Mode Switcher (FORGE vs AUDIT) */}
         {stage === 'input' && (
+          <div className="flex items-center justify-center gap-3 mb-6 p-1.5 rounded-2xl bg-[#121826] border border-[#232D42] shadow-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setPipelineMode('forge');
+                setError(null);
+              }}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+                pipelineMode === 'forge'
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 border border-blue-500'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Cpu className="w-4 h-4" />
+              Mode 1: FORGE (Build New Agent)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setPipelineMode('audit');
+                setError(null);
+              }}
+              className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+                pipelineMode === 'audit'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 border border-emerald-500'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Shield className="w-4 h-4" />
+              Mode 2: AUDIT (Bring Your Own Agent)
+            </button>
+          </div>
+        )}
+
+        {/* STAGE 1: Natural Language Prompt Input (FORGE Mode) */}
+        {stage === 'input' && pipelineMode === 'forge' && (
           <div className="w-full space-y-8 animate-in fade-in duration-300">
             <div className="text-center space-y-3 max-w-2xl mx-auto pt-6">
               <h2 className="text-3xl font-extrabold text-white tracking-tight">
@@ -369,6 +448,15 @@ export default function HomePage() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* STAGE 1 (ALT): AUDIT Mode Entry Flow (Mode 2) */}
+        {stage === 'input' && pipelineMode === 'audit' && (
+          <AuditModeEntry
+            apiBaseUrl={API_BASE_URL}
+            onAuditComplete={handleAuditComplete}
+            onError={setError}
+          />
         )}
 
         {/* STAGE 2: Spec Confirmation Card */}
