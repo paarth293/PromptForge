@@ -14,3 +14,7 @@ class AuditEvent(BaseModel):
     prev_event_hash: str = "GENESIS"
     event_hash: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def prev_hash(self) -> str:
+        return self.prev_event_hash

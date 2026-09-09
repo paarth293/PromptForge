@@ -253,19 +253,43 @@ class PipelineRepository:
                 INSERT OR REPLACE INTO audit_events (event_id, tenant_id, agent_id, event_type, prev_hash, event_hash, data_json, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
                 """,
-                (event.event_id, event.tenant_id, event.agent_id, event.event_type, event.prev_hash, event.event_hash, event.model_dump_json(), event.timestamp.isoformat())
+                (
+                    event.event_id,
+                    event.tenant_id,
+                    event.agent_id,
+                    event.event_type,
+                    event.prev_event_hash,
+                    event.event_hash,
+                    event.model_dump_json(),
+                    event.timestamp.isoformat(),
+                )
             )
             await conn.commit()
 
     async def get_audit_chain(self, agent_id: str) -> List[AuditEvent]:
+        return await self.get_audit_events_for_agent(agent_id)
+
+    async def get_audit_events_for_agent(self, agent_id: str) -> List[AuditEvent]:
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
             cursor = await conn.execute(
-                "SELECT data_json FROM audit_events WHERE agent_id = ? ORDER BY timestamp ASC;",
+                "SELECT data_json FROM audit_events WHERE agent_id = ? ORDER BY timestamp ASC, rowid ASC;",
                 (agent_id,)
             )
             rows = await cursor.fetchall()
             return [AuditEvent.model_validate_json(row[0]) for row in rows]
+
+    async def get_latest_audit_event_for_agent(self, agent_id: str) -> Optional[AuditEvent]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT data_json FROM audit_events WHERE agent_id = ? ORDER BY timestamp DESC, rowid DESC LIMIT 1;",
+                (agent_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                return AuditEvent.model_validate_json(row[0])
+            return None
 
     # BirthCertificate
     async def save_certificate(self, cert: BirthCertificate):
