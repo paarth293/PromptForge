@@ -23,6 +23,8 @@ from .spec import AgentSpec, Capability
 from .test_set import GeneratedTestSuite, TestCase
 from .verify import (
     Chain10EvaluationOutput,
+    ConsistencyEvaluationResult,
+    ConsistencyRunOutput,
     GroundTruthCaseResult,
     GroundTruthEvaluationResult,
     VerificationScorecard,
@@ -52,6 +54,8 @@ __all__ = [
     "Chain10EvaluationOutput",
     "GroundTruthCaseResult",
     "GroundTruthEvaluationResult",
+    "ConsistencyRunOutput",
+    "ConsistencyEvaluationResult",
     "PolicyObject",
     "AuditEvent",
     "BirthCertificate",

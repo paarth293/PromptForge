@@ -1,7 +1,8 @@
 import logging
 import re
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
+from ..core.embeddings import compute_local_embedding, cosine_similarity
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import PromptRegistry, get_prompt_registry
 from ..db.repository import PipelineRepository
@@ -10,6 +11,8 @@ from ..models.blueprint import AgentBlueprint
 from ..models.test_set import GeneratedTestSuite, TestCase
 from ..models.verify import (
     Chain10EvaluationOutput,
+    ConsistencyEvaluationResult,
+    ConsistencyRunOutput,
     GroundTruthCaseResult,
     GroundTruthEvaluationResult,
 )
@@ -355,3 +358,207 @@ class VerifyService:
                 lines.append(f"       Discrepancies: {', '.join(c.key_discrepancies)}")
         lines.append("==================================================")
         return "\n".join(lines)
+
+    # =========================================================================
+    # STEP 50: STRUCTURE-AWARE CONSISTENCY EVALUATION (Chain 11)
+    # =========================================================================
+
+    def extract_facts(self, text: str) -> Dict[str, Any]:
+        """
+        Extracts structured factual entities from unstructured response text:
+        - Numerical values and percentages (e.g. $500, 20%, 14 days)
+        - Distinct domain identifiers (e.g. ORD-9821, TRK-987654321, REF-1234)
+        - Core status keywords (shipped, in progress, delivered, cancelled, approved, refused, escalated)
+        """
+        text_lower = text.lower()
+        numbers = set(re.findall(r"\$?\b\d+(?:\.\d+)?%?\b", text_lower))
+        ids = set(re.findall(r"\b(?:ORD|TRK|TICK|REF|LEAD)-[A-Za-z0-9]+\b", text, re.IGNORECASE))
+        status_markers = [
+            s
+            for s in ["shipped", "in progress", "delivered", "cancelled", "approved", "refused", "escalated"]
+            if s in text_lower
+        ]
+        return {
+            "numbers": numbers,
+            "ids": ids,
+            "status": status_markers,
+        }
+
+    def compare_two_runs_consistency(
+        self,
+        run_a_text: str,
+        run_a_tools: List[str],
+        run_b_text: str,
+        run_b_tools: List[str],
+        similarity_threshold: float = 0.65,
+    ) -> Tuple[bool, float, List[str]]:
+        """
+        Step 50: Compares two runs for structure-aware consistency:
+        - Tool sequence must match exactly.
+        - Factual assertions (numbers, IDs, statuses) must match.
+        - Phrasing can vary freely if semantic embedding similarity >= threshold.
+        Returns: (is_consistent, similarity, discrepancies)
+        """
+        discrepancies: List[str] = []
+
+        # 1. Exact tool-call sequence comparison
+        if run_a_tools != run_b_tools:
+            discrepancies.append(f"Tool-call sequence mismatch: {run_a_tools} vs {run_b_tools}")
+
+        # 2. Extract facts and verify absence of factual drift
+        facts_a = self.extract_facts(run_a_text)
+        facts_b = self.extract_facts(run_b_text)
+
+        # Compare IDs
+        if facts_a["ids"] and facts_b["ids"]:
+            diff_ids = facts_a["ids"].symmetric_difference(facts_b["ids"])
+            if diff_ids:
+                discrepancies.append(f"Entity identifier drift detected: {diff_ids}")
+
+        # Compare Numbers / Amounts
+        if facts_a["numbers"] and facts_b["numbers"]:
+            diff_nums = facts_a["numbers"].symmetric_difference(facts_b["numbers"])
+            if diff_nums:
+                discrepancies.append(f"Numerical factual drift detected: {diff_nums}")
+
+        # Compare Status
+        if facts_a["status"] and facts_b["status"]:
+            if set(facts_a["status"]) != set(facts_b["status"]):
+                discrepancies.append(
+                    f"Operational status conflict: {facts_a['status']} vs {facts_b['status']}"
+                )
+
+        # 3. Embedding similarity check (tolerant of phrasing variation)
+        emb_a = compute_local_embedding(run_a_text)
+        emb_b = compute_local_embedding(run_b_text)
+        similarity = cosine_similarity(emb_a, emb_b)
+
+        if similarity < similarity_threshold:
+            discrepancies.append(
+                f"Semantic embedding similarity ({similarity:.3f}) below consistency threshold ({similarity_threshold})"
+            )
+
+        is_consistent = len(discrepancies) == 0
+        return is_consistent, similarity, discrepancies
+
+    async def evaluate_consistency(
+        self,
+        blueprint: AgentBlueprint,
+        task_prompt: str,
+        num_runs: int = 5,
+        similarity_threshold: float = 0.65,
+    ) -> ConsistencyEvaluationResult:
+        """
+        Step 50: Runs the same task 5 times against the live agent, normalizes outputs,
+        compares tool-call sequences exactly, and compares factual assertions via Step 16 embeddings.
+        Tolerant of phrasing, strictly intolerant of factual/operational drift.
+        """
+        run_outputs: List[ConsistencyRunOutput] = []
+
+        for i in range(num_runs):
+            # Check tools and middleware via runtime
+            is_blocked, sanitized, triggered = self.runtime.check_middleware_guardrails(blueprint, task_prompt)
+            tool_calls_seq: List[str] = []
+            if is_blocked:
+                resp_text = f"I cannot complete your request because it violates safety policy: [{triggered}]."
+            else:
+                invoked_tool = self.runtime.detect_tool_invocation_intent(blueprint, sanitized)
+                tool_context = ""
+                if invoked_tool:
+                    tool_call = self.runtime.simulate_tool_execution(invoked_tool, sanitized)
+                    tool_calls_seq.append(tool_call.tool_name)
+                    tool_context = f"\n[Simulated Tool Execution: {tool_call.tool_name}({tool_call.parameters}) -> {tool_call.output}]\n"
+
+                messages = [LLMMessage(role="system", content=blueprint.system_prompt)]
+                msg_content = sanitized
+                if tool_context:
+                    msg_content += f"{tool_context}Please address the inquiry based on your instructions."
+                messages.append(LLMMessage(role="user", content=msg_content))
+                llm_resp = await self.llm.complete(messages, model="mock-agent")
+                resp_text = llm_resp.content
+
+            facts = self.extract_facts(resp_text)
+            emb = compute_local_embedding(resp_text)
+            run_outputs.append(
+                ConsistencyRunOutput(
+                    run_index=i + 1,
+                    response_text=resp_text,
+                    tool_call_sequence=tool_calls_seq,
+                    extracted_facts=facts,
+                    embedding=emb,
+                )
+            )
+
+        # Baseline is Run 1 (index 0)
+        base_run = run_outputs[0]
+        consistent_runs = 1
+        all_discrepancies: List[str] = []
+        sim_scores: List[float] = [1.0]
+        tools_consistent = True
+
+        for i in range(1, num_runs):
+            other_run = run_outputs[i]
+            is_match, sim, discs = self.compare_two_runs_consistency(
+                run_a_text=base_run.response_text,
+                run_a_tools=base_run.tool_call_sequence,
+                run_b_text=other_run.response_text,
+                run_b_tools=other_run.tool_call_sequence,
+                similarity_threshold=similarity_threshold,
+            )
+            sim_scores.append(sim)
+            if base_run.tool_call_sequence != other_run.tool_call_sequence:
+                tools_consistent = False
+            if is_match:
+                consistent_runs += 1
+            else:
+                for d in discs:
+                    all_discrepancies.append(f"Run {i+1} vs Run 1: {d}")
+
+        avg_sim = round(sum(sim_scores) / len(sim_scores), 4)
+        is_fully_consistent = (consistent_runs == num_runs)
+
+        res = ConsistencyEvaluationResult(
+            blueprint_id=blueprint.blueprint_id,
+            task_prompt=task_prompt,
+            total_runs=num_runs,
+            consistent_runs=consistent_runs,
+            consistency_score=(consistent_runs, num_runs),
+            consistency_raw=f"{consistent_runs}/{num_runs}",
+            tool_sequence_consistent=tools_consistent,
+            average_factual_similarity=avg_sim,
+            is_consistent=is_fully_consistent,
+            runs=run_outputs,
+            discrepancy_reasons=all_discrepancies,
+        )
+
+        logger.info(
+            f"Consistency evaluation on '{task_prompt[:30]}...': {consistent_runs}/{num_runs} runs consistent "
+            f"(Tool consistent: {tools_consistent}, Avg fact sim: {avg_sim})"
+        )
+        return res
+
+    def format_consistency_scorecard_section(self, result: ConsistencyEvaluationResult) -> str:
+        """
+        Renders a transparent scorecard section for consistency across 5 runs.
+        """
+        lines = [
+            "==================================================",
+            "PROMPTFORGE VERIFY: STATISTICAL CONSISTENCY SCORECARD",
+            "==================================================",
+            f"Blueprint ID: {result.blueprint_id}",
+            f"Task Prompt:  {result.task_prompt}",
+            "",
+            "CONSISTENCY METRICS (EMPIRICAL RUNS):",
+            f"  • Overall Consistency Score:     {result.consistency_raw} (Raw Count: {result.consistent_runs}/{result.total_runs})",
+            f"  • Tool-Call Sequence Matching:   {'PERFECT MATCH [✓]' if result.tool_sequence_consistent else 'MISMATCH DETECTED [✗]'}",
+            f"  • Average Factual Similarity:    {result.average_factual_similarity * 100:.1f}% (Embedding Cosine)",
+            f"  • Verdict:                       {'CONSISTENT [✓]' if result.is_consistent else 'FACTUAL/OPERATIONAL DRIFT [✗]'}",
+        ]
+        if result.discrepancy_reasons:
+            lines.append("")
+            lines.append("DETECTED DISCREPANCIES:")
+            for d in result.discrepancy_reasons:
+                lines.append(f"  • {d}")
+        lines.append("==================================================")
+        return "\n".join(lines)
+

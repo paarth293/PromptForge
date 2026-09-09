@@ -197,6 +197,16 @@ class LLMClient:
                 "reasoning": "The response satisfies declared ground-truth facts and operational policy boundaries.",
                 "key_discrepancies": []
             })
+        elif "structure-aware consistency evaluator" in user_lower or "chain 11" in user_lower or "consistency evaluation" in user_lower:
+            content = json.dumps({
+                "task_prompt": "Simulated task prompt",
+                "tool_sequence_consistent": True,
+                "factual_consistency_score": 1.0,
+                "consistent_runs": 5,
+                "total_runs": 5,
+                "summary": "All 5 runs exhibited identical tool invocation patterns and consistent factual assertions.",
+                "discrepancies": []
+            })
         elif "pedagogical ai few-shot designer" in user_lower or "canonical few-shot exemplar" in user_lower:
             content = json.dumps({
                 "examples": [

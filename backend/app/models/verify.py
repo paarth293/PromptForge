@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -41,6 +41,31 @@ class GroundTruthEvaluationResult(BaseModel):
     disclosed_split: str = ""             # e.g. "User Gold: 4 cases (weight 70%), Generated Set: 8 cases (weight 30%)"
     case_results: List[GroundTruthCaseResult] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ConsistencyRunOutput(BaseModel):
+    run_index: int
+    response_text: str
+    tool_call_sequence: List[str] = Field(default_factory=list)
+    extracted_facts: Dict[str, Any] = Field(default_factory=dict)
+    embedding: List[float] = Field(default_factory=list)
+
+
+class ConsistencyEvaluationResult(BaseModel):
+    evaluation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    blueprint_id: str
+    task_prompt: str
+    total_runs: int = 5
+    consistent_runs: int = 5
+    consistency_score: Tuple[int, int] = (5, 5)  # (matched, runs)
+    consistency_raw: str = "5/5"
+    tool_sequence_consistent: bool = True
+    average_factual_similarity: float = 1.0
+    is_consistent: bool = True
+    runs: List[ConsistencyRunOutput] = Field(default_factory=list)
+    discrepancy_reasons: List[str] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
 
 
 class VerificationScorecard(BaseModel):
