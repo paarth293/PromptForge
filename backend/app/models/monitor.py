@@ -71,3 +71,9 @@ class MonitorHistoryResponse(BaseModel):
     schedules: List[MonitorSchedule] = Field(default_factory=list)
     runs: List[MonitorRunResult] = Field(default_factory=list)
     alerts: List[MonitorAlert] = Field(default_factory=list)
+
+
+class ReviewAlertRequest(BaseModel):
+    status: str = "acknowledged"  # "acknowledged" or "resolved"
+    reviewer_notes: Optional[str] = None
+    action_approved: bool = False

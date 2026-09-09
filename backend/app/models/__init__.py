@@ -18,6 +18,7 @@ from .monitor import (
     MonitorHistoryResponse,
     MonitorRunResult,
     MonitorSchedule,
+    ReviewAlertRequest,
     TriggerMonitorRunRequest,
 )
 from .playbook import AdversarialPlaybookEntry
@@ -104,5 +105,6 @@ __all__ = [
     "MonitorRunResult",
     "MonitorAlert",
     "MonitorHistoryResponse",
+    "ReviewAlertRequest",
 ]
 

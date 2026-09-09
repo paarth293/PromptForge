@@ -318,6 +318,21 @@ class MonitorService:
                 )
                 await self.repo.save_monitor_alert(alert)
 
+                # Repoint deployment and schedule to newly hardened revision
+                if harden_res.hardened_blueprint_id:
+                    deployment = await self.repo.get_deployment_by_agent(agent_id)
+                    if deployment:
+                        deployment.blueprint_id = harden_res.hardened_blueprint_id
+                        deployment.version += 1
+                        await self.repo.save_deployment(deployment)
+                        logger.info(f"Deployment for {agent_id} repointed to hardened blueprint {harden_res.hardened_blueprint_id} (v{deployment.version})")
+
+                    if schedule_id:
+                        sched = await self.repo.get_monitor_schedule(schedule_id)
+                        if sched:
+                            sched.blueprint_id = harden_res.hardened_blueprint_id
+                            await self.repo.save_monitor_schedule(sched)
+
                 await self.audit_service.record_event(
                     tenant_id=tenant_id,
                     agent_id=agent_id,
@@ -435,3 +450,43 @@ class MonitorService:
             runs=runs,
             alerts=alerts,
         )
+
+    async def list_review_queue(self, tenant_id: Optional[str] = None) -> List[MonitorAlert]:
+        """Step 75: Returns open drift alerts requiring human operator review."""
+        return await self.repo.list_open_alerts(tenant_id=tenant_id)
+
+    async def review_alert(
+        self,
+        alert_id: str,
+        reviewer_id: str = "human_operator",
+        status: str = "acknowledged",
+        notes: Optional[str] = None,
+        action_approved: bool = False,
+        tenant_id: str = "tenant-default",
+    ) -> MonitorAlert:
+        """Step 75: Reviews and resolves/acknowledges a flagged drift alert with audit trail."""
+        alert = await self.repo.get_monitor_alert(alert_id)
+        if not alert:
+            raise ValidationException(f"Monitor alert '{alert_id}' not found.")
+
+        alert.status = status
+        alert.metadata["reviewed_by"] = reviewer_id
+        alert.metadata["reviewer_notes"] = notes
+        alert.metadata["action_approved"] = action_approved
+        alert.metadata["reviewed_at"] = datetime.now(timezone.utc).isoformat()
+        await self.repo.save_monitor_alert(alert)
+
+        await self.audit_service.record_event(
+            tenant_id=tenant_id,
+            agent_id=alert.agent_id,
+            event_type="monitor_alert_reviewed",
+            payload={
+                "alert_id": alert_id,
+                "status": status,
+                "reviewer_id": reviewer_id,
+                "notes": notes,
+                "action_approved": action_approved,
+            },
+        )
+        logger.info(f"Monitor alert {alert_id} reviewed by {reviewer_id}: status={status}")
+        return alert

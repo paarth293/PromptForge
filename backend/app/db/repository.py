@@ -762,6 +762,56 @@ class PipelineRepository:
                 )
             return results
 
+    async def get_monitor_alert(self, alert_id: str) -> Optional[MonitorAlert]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            cursor = await conn.execute(
+                "SELECT alert_id, agent_id, tenant_id, run_id, severity, status, message, metadata_json, created_at FROM monitor_alerts WHERE alert_id = ?;",
+                (alert_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return MonitorAlert(
+                    alert_id=row[0],
+                    agent_id=row[1],
+                    tenant_id=row[2],
+                    run_id=row[3],
+                    severity=row[4],
+                    status=row[5],
+                    message=row[6],
+                    metadata=json.loads(row[7]) if row[7] else {},
+                    created_at=datetime.fromisoformat(row[8]) if row[8] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def list_open_alerts(self, tenant_id: Optional[str] = None) -> List[MonitorAlert]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            query = "SELECT alert_id, agent_id, tenant_id, run_id, severity, status, message, metadata_json, created_at FROM monitor_alerts WHERE status = 'open'"
+            params = []
+            if tenant_id:
+                query += " AND tenant_id = ?"
+                params.append(tenant_id)
+            query += " ORDER BY created_at DESC;"
+            cursor = await conn.execute(query, tuple(params))
+            rows = await cursor.fetchall()
+            return [
+                MonitorAlert(
+                    alert_id=row[0],
+                    agent_id=row[1],
+                    tenant_id=row[2],
+                    run_id=row[3],
+                    severity=row[4],
+                    status=row[5],
+                    message=row[6],
+                    metadata=json.loads(row[7]) if row[7] else {},
+                    created_at=datetime.fromisoformat(row[8]) if row[8] else datetime.now(timezone.utc),
+                )
+                for row in rows
+            ]
+
     async def update_monitor_alert_status(self, alert_id: str, status: str):
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row

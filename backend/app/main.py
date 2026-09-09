@@ -41,9 +41,11 @@ from .models.audit_import import (
 from .models.harden import HardeningLoopResult
 from .models.monitor import (
     CreateMonitorScheduleRequest,
+    MonitorAlert,
     MonitorHistoryResponse,
     MonitorRunResult,
     MonitorSchedule,
+    ReviewAlertRequest,
     TriggerMonitorRunRequest,
 )
 from .services.audit_import_service import AuditImportService
@@ -793,6 +795,33 @@ async def get_monitor_history_endpoint(
     repo = PipelineRepository()
     service = MonitorService(repo=repo)
     return await service.get_agent_monitor_history(agent_id)
+
+
+@app.get("/api/monitor/review-queue", response_model=List[MonitorAlert])
+async def list_monitor_review_queue_endpoint(
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = MonitorService(repo=repo)
+    return await service.list_review_queue(tenant_id=tenant_id)
+
+
+@app.post("/api/monitor/alerts/{alert_id}/review", response_model=MonitorAlert)
+async def review_monitor_alert_endpoint(
+    alert_id: str,
+    req: ReviewAlertRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = MonitorService(repo=repo)
+    return await service.review_alert(
+        alert_id=alert_id,
+        reviewer_id="human_operator",
+        status=req.status,
+        notes=req.reviewer_notes,
+        action_approved=req.action_approved,
+        tenant_id=tenant_id,
+    )
 
 
 
