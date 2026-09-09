@@ -1,6 +1,15 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
+from .core.logging import setup_logging
+from .core.errors import (
+    PromptForgeException,
+    ValidationException,
+    promptforge_exception_handler,
+    generic_exception_handler
+)
+
+setup_logging()
 
 app = FastAPI(
     title="PromptForge Backend API",
@@ -16,6 +25,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_exception_handler(PromptForgeException, promptforge_exception_handler)
+app.add_exception_handler(Exception, generic_exception_handler)
+
+@app.middleware("http")
+async def attach_request_id(request: Request, call_next):
+    import uuid
+    request.state.request_id = str(uuid.uuid4())
+    response = await call_next(request)
+    response.headers["X-Request-ID"] = request.state.request_id
+    return response
+
 @app.get("/health")
 async def health_check():
     return {
@@ -24,6 +44,11 @@ async def health_check():
         "version": "0.1.0",
         "environment": settings.promptforge_env
     }
+
+@app.get("/api/test/error")
+async def test_error_endpoint():
+    """Forces an error to test the standardized error shape."""
+    raise ValidationException("Forced test validation error", details={"field": "test_input"})
 
 if __name__ == "__main__":
     import uvicorn
