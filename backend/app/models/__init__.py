@@ -11,6 +11,14 @@ from .blueprint import (
 from .certificate import BirthCertificate, CertificateVerificationResult
 from .deployment import DeploymentPackage
 from .dossier import AgentDossier
+from .evolve import (
+    PROMPT_STRATEGIES,
+    DeepForgeRunRequest,
+    EvolveCandidate,
+    EvolveGenerationRecord,
+    EvolveLineageLog,
+    PopulationGeneratorResult,
+)
 from .harden import HardeningLog, PatchEntry
 from .monitor import (
     CreateMonitorScheduleRequest,
@@ -106,5 +114,11 @@ __all__ = [
     "MonitorAlert",
     "MonitorHistoryResponse",
     "ReviewAlertRequest",
+    "EvolveCandidate",
+    "EvolveGenerationRecord",
+    "EvolveLineageLog",
+    "PopulationGeneratorResult",
+    "DeepForgeRunRequest",
+    "PROMPT_STRATEGIES",
 ]
 

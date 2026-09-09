@@ -11,6 +11,7 @@ from ..models import (
     AuditEvent,
     BirthCertificate,
     DeploymentPackage,
+    EvolveLineageLog,
     HardeningLog,
     MonitorAlert,
     MonitorRunResult,
@@ -820,6 +821,145 @@ class PipelineRepository:
                 (status, alert_id),
             )
             await conn.commit()
+
+    # Evolve Lineage Logs (Phase 10: Deep Forge)
+    async def save_evolve_lineage_log(self, log: EvolveLineageLog):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO evolve_lineage_logs (
+                    lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                    champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
+                    execution_time_seconds, log_hash, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    log.lineage_id,
+                    log.spec_id,
+                    log.domain,
+                    json.dumps([g.model_dump(mode="json") for g in log.generations]),
+                    json.dumps(log.champion_candidate.model_dump(mode="json")) if log.champion_candidate else None,
+                    log.champion_blueprint_id,
+                    log.total_candidates_evaluated,
+                    1 if log.is_cached_demo_run else 0,
+                    log.execution_time_seconds,
+                    log.log_hash,
+                    log.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_evolve_lineage_log(self, lineage_id: str) -> Optional[EvolveLineageLog]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.evolve import EvolveCandidate, EvolveGenerationRecord
+            cursor = await conn.execute(
+                """
+                SELECT lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                       champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
+                       execution_time_seconds, log_hash, created_at
+                FROM evolve_lineage_logs WHERE lineage_id = ?;
+                """,
+                (lineage_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                gens_raw = json.loads(row[3]) if row[3] else []
+                generations = [EvolveGenerationRecord.model_validate(g) for g in gens_raw]
+                champion = EvolveCandidate.model_validate(json.loads(row[4])) if row[4] else None
+                return EvolveLineageLog(
+                    lineage_id=row[0],
+                    spec_id=row[1],
+                    domain=row[2],
+                    generations=generations,
+                    champion_candidate=champion,
+                    champion_blueprint_id=row[5],
+                    total_candidates_evaluated=row[6],
+                    is_cached_demo_run=bool(row[7]),
+                    execution_time_seconds=row[8],
+                    log_hash=row[9],
+                    created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def get_latest_lineage_log_by_spec(self, spec_id: str) -> Optional[EvolveLineageLog]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.evolve import EvolveCandidate, EvolveGenerationRecord
+            cursor = await conn.execute(
+                """
+                SELECT lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                       champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
+                       execution_time_seconds, log_hash, created_at
+                FROM evolve_lineage_logs WHERE spec_id = ? ORDER BY created_at DESC LIMIT 1;
+                """,
+                (spec_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                gens_raw = json.loads(row[3]) if row[3] else []
+                generations = [EvolveGenerationRecord.model_validate(g) for g in gens_raw]
+                champion = EvolveCandidate.model_validate(json.loads(row[4])) if row[4] else None
+                return EvolveLineageLog(
+                    lineage_id=row[0],
+                    spec_id=row[1],
+                    domain=row[2],
+                    generations=generations,
+                    champion_candidate=champion,
+                    champion_blueprint_id=row[5],
+                    total_candidates_evaluated=row[6],
+                    is_cached_demo_run=bool(row[7]),
+                    execution_time_seconds=row[8],
+                    log_hash=row[9],
+                    created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def list_evolve_lineage_logs(self, limit: int = 20) -> List[EvolveLineageLog]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.evolve import EvolveCandidate, EvolveGenerationRecord
+            cursor = await conn.execute(
+                """
+                SELECT lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                       champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
+                       execution_time_seconds, log_hash, created_at
+                FROM evolve_lineage_logs ORDER BY created_at DESC LIMIT ?;
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            logs = []
+            for row in rows:
+                gens_raw = json.loads(row[3]) if row[3] else []
+                generations = [EvolveGenerationRecord.model_validate(g) for g in gens_raw]
+                champion = EvolveCandidate.model_validate(json.loads(row[4])) if row[4] else None
+                logs.append(
+                    EvolveLineageLog(
+                        lineage_id=row[0],
+                        spec_id=row[1],
+                        domain=row[2],
+                        generations=generations,
+                        champion_candidate=champion,
+                        champion_blueprint_id=row[5],
+                        total_candidates_evaluated=row[6],
+                        is_cached_demo_run=bool(row[7]),
+                        execution_time_seconds=row[8],
+                        log_hash=row[9],
+                        created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.now(timezone.utc),
+                    )
+                )
+            return logs
+
 
 
 
