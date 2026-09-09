@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import AgentChatWindow, { BlueprintInfo } from '../../../components/AgentChatWindow';
-import { Shield, Award, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import MonitorDashboardView from '../../../components/MonitorDashboardView';
+import { Shield, Award, CheckCircle2, AlertCircle, RefreshCw, Activity, MessageSquare } from 'lucide-react';
 
 interface DeploymentData {
   deployment_id: string;
@@ -48,6 +49,7 @@ export default function DeployedAgentPage() {
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState<boolean>(false);
   const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
+  const [activeTab, setActiveTab] = useState<'chat' | 'monitor'>('chat');
 
   const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -215,15 +217,59 @@ export default function DeployedAgentPage() {
         </div>
       )}
 
-      {/* Main chat window container */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col">
-        <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
-          <AgentChatWindow
-            blueprint={blueprint}
-            onReset={() => {}}
-            apiBaseUrl={apiBaseUrl}
-          />
+      {/* Sub-bar Navigation: Chat & Test vs Security Monitor & Drift */}
+      <div className="border-b border-slate-800 bg-slate-900/30 px-6 flex items-center justify-between">
+        <div className="flex space-x-6">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`py-3 border-b-2 font-medium text-xs flex items-center space-x-2 transition ${
+              activeTab === 'chat'
+                ? 'border-emerald-500 text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Interactive Chat Runtime</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('monitor')}
+            className={`py-3 border-b-2 font-medium text-xs flex items-center space-x-2 transition ${
+              activeTab === 'monitor'
+                ? 'border-emerald-500 text-white'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span>Continuous Monitor & Drift</span>
+          </button>
         </div>
+
+        <a
+          href="/monitor"
+          className="text-xs text-slate-400 hover:text-emerald-400 font-mono transition"
+        >
+          Fleet Monitor →
+        </a>
+      </div>
+
+      {/* Main container */}
+      <main className="flex-1 max-w-6xl w-full mx-auto p-4 sm:p-6 flex flex-col">
+        {activeTab === 'chat' ? (
+          <div className="flex-1 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
+            <AgentChatWindow
+              blueprint={blueprint}
+              onReset={() => {}}
+              apiBaseUrl={apiBaseUrl}
+            />
+          </div>
+        ) : (
+          <MonitorDashboardView
+            agentId={deployment.agent_id}
+            agentName={deployment.agent_name}
+            apiBaseUrl={apiBaseUrl}
+            tenantId="tenant-demo"
+          />
+        )}
       </main>
     </div>
   );
