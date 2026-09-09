@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from .config import settings
 from .core.errors import (
@@ -15,6 +16,7 @@ from .core.tenancy import get_current_tenant_id, verify_tenant_access
 from .db.repository import PipelineRepository
 from .db.session import init_db
 from .models import AgentBlueprint, AgentSpec
+from .services.forge_service import ForgeService
 
 setup_logging()
 
@@ -63,7 +65,20 @@ async def test_error_endpoint():
     """Forces an error to test the standardized error shape."""
     raise ValidationException("Forced test validation error", details={"field": "test_input"})
 
-# Tenant Scoped Endpoints
+class DecomposeRequest(BaseModel):
+    description: str
+
+# Forge Endpoints
+@app.post("/api/forge/decompose", response_model=AgentSpec)
+async def decompose_endpoint(
+    req: DecomposeRequest,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    service = ForgeService()
+    spec = await service.decompose_intent(description=req.description, tenant_id=tenant_id)
+    return spec
+
+# Spec and Blueprint Endpoints
 @app.post("/api/specs")
 async def create_spec_endpoint(
     spec: AgentSpec,
