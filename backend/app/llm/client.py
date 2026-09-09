@@ -207,6 +207,39 @@ class LLMClient:
                 "summary": "All 5 runs exhibited identical tool invocation patterns and consistent factual assertions.",
                 "discrepancies": []
             })
+        elif "goal-completion evaluator" in user_lower or "simulated customer" in user_lower or "chain 12 part 1" in user_lower or "chain12customeroutput" in user_lower:
+            m_goal = re.search(r"underlying goal:\s*([^\n\r]+)", user_content, re.IGNORECASE)
+            extracted_goal = m_goal.group(1).strip() if m_goal else "Check order status and tracking"
+
+            agent_blocked = "violates safety policy" in user_lower or "blocked by policy" in user_lower
+
+            if "current turn: 1" in user_lower or "turn 1" in user_lower or "turn_number: 1" in user_lower or "start of conversation" in user_lower:
+                content = json.dumps({
+                    "turn": 1,
+                    "customer_message": f"Hello, I need assistance with my request: {extracted_goal}",
+                    "goal_achieved": False,
+                    "goal_blocked_or_failed": False,
+                    "verdict": "IN_PROGRESS",
+                    "verdict_rationale": "Initial request posed to agent."
+                })
+            elif agent_blocked:
+                content = json.dumps({
+                    "turn": 2,
+                    "customer_message": "My request was refused by the safety guardrail.",
+                    "goal_achieved": False,
+                    "goal_blocked_or_failed": True,
+                    "verdict": "FAILED",
+                    "verdict_rationale": "The agent correctly refused the prohibited/adversarial request per declared guardrails."
+                })
+            else:
+                content = json.dumps({
+                    "turn": 2,
+                    "customer_message": "Thank you so much! That resolves my inquiry completely.",
+                    "goal_achieved": True,
+                    "goal_blocked_or_failed": False,
+                    "verdict": "SUCCESS",
+                    "verdict_rationale": "The agent provided clear assistance and resolved the customer goal within policy boundaries."
+                })
         elif "pedagogical ai few-shot designer" in user_lower or "canonical few-shot exemplar" in user_lower:
             content = json.dumps({
                 "examples": [

@@ -67,6 +67,46 @@ class ConsistencyEvaluationResult(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class Chain12CustomerOutput(BaseModel):
+    turn: int = 1
+    customer_message: str
+    goal_achieved: bool = False
+    goal_blocked_or_failed: bool = False
+    verdict: str = "IN_PROGRESS"  # "SUCCESS", "FAILED", "IN_PROGRESS"
+    verdict_rationale: str = ""
+
+
+class GoalJourneyTurn(BaseModel):
+    turn: int
+    role: str  # "customer" or "agent"
+    message: str
+    tool_calls: List[str] = Field(default_factory=list)
+
+
+class GoalCompletionJourney(BaseModel):
+    journey_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    goal_title: str
+    customer_persona: str
+    target_goal: str
+    max_turns: int = 8
+    verdict: str = "SUCCESS"  # "SUCCESS" or "FAILED"
+    turns_taken: int = 0
+    verdict_rationale: str = ""
+    transcript: List[GoalJourneyTurn] = Field(default_factory=list)
+
+
+class GoalCompletionEvaluationResult(BaseModel):
+    evaluation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    blueprint_id: str
+    total_journeys: int = 0
+    successful_journeys: int = 0
+    goal_completion_score: Tuple[int, int] = (0, 0)  # (passed, total)
+    goal_completion_raw: str = "0/0"
+    journeys: List[GoalCompletionJourney] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+
 
 class VerificationScorecard(BaseModel):
     scorecard_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
