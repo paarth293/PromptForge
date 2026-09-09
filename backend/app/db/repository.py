@@ -305,6 +305,32 @@ class PipelineRepository:
             )
             await conn.commit()
 
+    async def get_certificate(self, certificate_id: str) -> Optional[BirthCertificate]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM certificates WHERE certificate_id = ?;", (certificate_id,))
+            row = await cursor.fetchone()
+            if row:
+                return BirthCertificate.model_validate_json(row[0])
+            return None
+
+    async def get_certificate_by_agent(self, agent_id: str) -> Optional[BirthCertificate]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM certificates WHERE agent_id = ? ORDER BY issued_at DESC LIMIT 1;", (agent_id,))
+            row = await cursor.fetchone()
+            if row:
+                return BirthCertificate.model_validate_json(row[0])
+            return None
+
+    async def list_certificates(self) -> List[BirthCertificate]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM certificates ORDER BY issued_at DESC;")
+            rows = await cursor.fetchall()
+            return [BirthCertificate.model_validate_json(row[0]) for row in rows]
+
+
     # Playbook
     async def save_playbook_entry(self, entry: AdversarialPlaybookEntry):
         async with self._connect() as conn:

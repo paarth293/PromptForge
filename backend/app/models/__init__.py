@@ -8,7 +8,7 @@ from .blueprint import (
     ProvenanceRegistryEntry,
     ToolSchema,
 )
-from .certificate import BirthCertificate
+from .certificate import BirthCertificate, CertificateVerificationResult
 from .dossier import AgentDossier
 from .harden import HardeningLog, PatchEntry
 from .playbook import AdversarialPlaybookEntry
@@ -79,6 +79,7 @@ __all__ = [
     "PolicyObject",
     "AuditEvent",
     "BirthCertificate",
+    "CertificateVerificationResult",
     "AdversarialPlaybookEntry",
     "AgentDossier",
     "GeneratedTestSuite",

@@ -20,6 +20,8 @@ from .db.session import init_db
 from .models import (
     AgentBlueprint,
     AgentSpec,
+    BirthCertificate,
+    CertificateVerificationResult,
     ChatRequest,
     ChatResponse,
     HardeningLog,
@@ -27,6 +29,7 @@ from .models import (
     VerificationScorecard,
 )
 from .models.harden import HardeningLoopResult
+from .services.certificate_service import CertificateService
 from .services.forge_service import ForgeService
 from .services.harden_service import HardenService
 from .services.redteam_service import RedTeamService
@@ -436,6 +439,82 @@ async def get_formatted_scorecard_endpoint(
     return {"blueprint_id": blueprint_id, "formatted_scorecard": text}
 
 
+# =========================================================================
+# Stage 5: DEPLOY & Certificate Endpoints
+# =========================================================================
+
+class CertificateVerifyRequest(BaseModel):
+    certificate_id: str
+
+
+@app.post("/api/deploy/certificate/generate/{blueprint_id}", response_model=BirthCertificate)
+async def generate_certificate_endpoint(
+    blueprint_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    cert_service = CertificateService(repo=repo)
+    cert = await cert_service.generate_birth_certificate(blueprint_id=blueprint_id, tenant_id=tenant_id)
+    return cert
+
+
+@app.get("/api/deploy/certificate/{certificate_id}", response_model=BirthCertificate)
+async def get_certificate_endpoint(
+    certificate_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    cert = await repo.get_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    return cert
+
+
+@app.get("/api/deploy/certificate/agent/{agent_id}", response_model=BirthCertificate)
+async def get_certificate_by_agent_endpoint(
+    agent_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    cert = await repo.get_certificate_by_agent(agent_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="No certificate found for this agent")
+    return cert
+
+
+# Public Verification Endpoints (Accessible without auth to verify agent provenance)
+@app.get("/api/verify/certificate/{certificate_id}", response_model=CertificateVerificationResult)
+async def public_verify_certificate_endpoint(
+    certificate_id: str,
+):
+    repo = PipelineRepository()
+    cert = await repo.get_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    cert_service = CertificateService(repo=repo)
+    result = await cert_service.verify_certificate(certificate_id)
+    return result
+
+
+@app.post("/api/verify/certificate/verify", response_model=CertificateVerificationResult)
+async def verify_certificate_post_endpoint(
+    req: CertificateVerifyRequest,
+):
+    repo = PipelineRepository()
+    cert = await repo.get_certificate(req.certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    cert_service = CertificateService(repo=repo)
+    result = await cert_service.verify_certificate(req.certificate_id)
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.app.main:app", host=settings.host, port=settings.port, reload=True)
+

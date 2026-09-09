@@ -6,6 +6,7 @@ from ..core.hash_chain import HashChainBlock, create_block, verify_chain
 from ..db.repository import PipelineRepository
 from ..models.audit import AuditEvent
 from ..models.blueprint import AgentBlueprint
+from ..models.certificate import BirthCertificate
 from ..models.harden import HardeningLog
 from ..models.redteam import RedTeamReport
 from ..models.shield import PolicyObject
@@ -178,6 +179,29 @@ class AuditTrailService:
             tenant_id=tenant_id,
             agent_id=agent_id,
             event_type="deployment",
+            payload=payload
+        )
+
+    async def record_certificate_issued(
+        self,
+        cert: BirthCertificate,
+        tenant_id: str = "tenant-default"
+    ) -> AuditEvent:
+        """Records Birth Certificate issuance milestone."""
+        payload = {
+            "stage": "certificate",
+            "certificate_id": cert.certificate_id,
+            "agent_id": cert.agent_id,
+            "blueprint_hash": cert.blueprint_hash,
+            "red_team_report_hash": cert.red_team_report_hash,
+            "scorecard_hash": cert.scorecard_hash,
+            "composite_fingerprint": cert.composite_fingerprint,
+            "issued_at": cert.issued_at.isoformat()
+        }
+        return await self.record_event(
+            tenant_id=tenant_id,
+            agent_id=cert.agent_id,
+            event_type="certificate_issued",
             payload=payload
         )
 
