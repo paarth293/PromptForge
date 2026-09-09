@@ -70,9 +70,29 @@ class RedTeamService:
         seeded by matching patterns from the seed corpus, and strictly tailored to the agent's
         declared capabilities, boundaries, and tools.
         """
-        # Retrieve relevant seed patterns for inspiration
-        seeds = self.seed_service.get_sample_seeds(count=count, category=category)
-        seed_examples_json = json.dumps(seeds, indent=2)
+        # Retrieve static seed patterns for inspiration
+        static_seeds = self.seed_service.get_sample_seeds(count=count, category=category)
+
+        # Retrieve dynamic seeds from persistent Playbook (Step 47)
+        playbook_entries = await self.repo.list_playbook_entries(category=category)
+        dynamic_seeds = []
+        for p in playbook_entries:
+            dynamic_seeds.append({
+                "category": p.attack_category,
+                "difficulty": "hard",
+                "attack_vector": p.anonymized_attack_pattern,
+                "sample_prompt": p.anonymized_attack_pattern,
+                "domain": p.domain,
+                "source": "live_playbook"
+            })
+
+        # Combine seeds: prioritize live playbook entries if available, supplemented by static seeds
+        has_playbook_seeds = len(dynamic_seeds) > 0
+        combined_seeds = dynamic_seeds[:count] + static_seeds[:max(0, count - len(dynamic_seeds))]
+        if not combined_seeds:
+            combined_seeds = static_seeds
+
+        seed_examples_json = json.dumps(combined_seeds, indent=2)
 
         spec_data = {
             "agent_name": blueprint.agent_name,
@@ -98,13 +118,15 @@ class RedTeamService:
             model=model
         )
 
-        # Ensure all attacks are tagged with the requested persona and have generated IDs
+        # Ensure all attacks are tagged with the requested persona and proper seed source
         for atk in batch.attacks:
             atk.attacker_persona = persona
+            if has_playbook_seeds:
+                atk.seed_source = "live_playbook"
 
         logger.info(
             f"Generated {len(batch.attacks)} targeted attacks for persona '{persona}' "
-            f"against blueprint '{blueprint.blueprint_id}'."
+            f"(Playbook seeds used: {has_playbook_seeds}) against blueprint '{blueprint.blueprint_id}'."
         )
         return batch.attacks
 
@@ -265,6 +287,7 @@ class RedTeamService:
             difficulty=attack.difficulty,
             is_multi_turn=len(attack.turns) > 1,
             failure_mode=failure_mode,
+            seed_source=getattr(attack, "seed_source", "seed_corpus"),
             turns=turn_records,
             final_response=final_reply,
             was_blocked_any_turn=was_blocked,
@@ -392,7 +415,8 @@ class RedTeamService:
             violation_detected=judgment_out.violation_detected,
             violated_boundary_or_policy=judgment_out.violated_boundary_or_policy,
             severity_score=judgment_out.severity_score,
-            judge_model=judge_model
+            judge_model=judge_model,
+            seed_source=getattr(transcript, "seed_source", "seed_corpus")
         )
 
         logger.info(

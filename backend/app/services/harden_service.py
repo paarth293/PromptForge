@@ -17,6 +17,7 @@ from ..models.harden import (
     PatchEntry,
     ProposedPatchesOutput,
 )
+from ..models.playbook import AdversarialPlaybookEntry, anonymize_attack_prompt
 from ..models.redteam import AttackVerdict, ExecutedAttackTranscript, RedTeamReport
 from .redteam_service import RedTeamService
 
@@ -235,6 +236,60 @@ class HardenService:
         """
         return await self.repo.get_blueprint_history(spec_id)
 
+    async def record_failing_attacks_to_playbook(
+        self,
+        blueprint: AgentBlueprint,
+        failing_attacks: List[Union[AttackVerdict, ExecutedAttackTranscript, Dict[str, Any]]],
+        domain: str = "general",
+    ) -> List[AdversarialPlaybookEntry]:
+        """
+        Step 47: Every COMPROMISED / DEGRADED attack verdict is anonymized, tagged by category
+        and domain, and appended to the persistent shared Adversarial Playbook.
+        """
+        new_entries: List[AdversarialPlaybookEntry] = []
+        for atk in failing_attacks:
+            prompt_text = ""
+            category = "social_engineering"
+            target_surface = "boundaries"
+            remediation = "Enforce strict guardrails"
+
+            if isinstance(atk, AttackVerdict):
+                prompt_text = atk.prompt
+                category = atk.category
+                target_surface = atk.violated_boundary_or_policy or "boundaries"
+                remediation = atk.verdict_rationale or f"Surgically harden {category}"
+            elif isinstance(atk, ExecutedAttackTranscript):
+                prompt_text = atk.turns[0].user_prompt if atk.turns else ""
+                category = atk.category
+                target_surface = atk.target_surface
+                remediation = f"Remediate {atk.attack_vector} breach"
+            elif isinstance(atk, dict):
+                prompt_text = atk.get("prompt", "") or atk.get("user_prompt", "")
+                category = atk.get("category", "social_engineering")
+                target_surface = atk.get("target_surface", "boundaries")
+                remediation = atk.get("verdict_rationale", "Remediation rule")
+
+            if not prompt_text:
+                continue
+
+            anonymized_pattern = anonymize_attack_prompt(prompt_text)
+
+            entry = AdversarialPlaybookEntry(
+                entry_id=f"PB-{uuid.uuid4().hex[:8].upper()}",
+                attack_category=category,
+                domain=domain,
+                anonymized_attack_pattern=anonymized_pattern,
+                target_surface=target_surface,
+                remediation_pattern=remediation,
+                source_agent_hash=blueprint.blueprint_hash or "GENESIS",
+                added_at=datetime.now(timezone.utc),
+            )
+            await self.repo.save_playbook_entry(entry)
+            new_entries.append(entry)
+
+        logger.info(f"Appended {len(new_entries)} anonymized adversarial entries to persistent Playbook.")
+        return new_entries
+
     async def run_targeted_hardening_loop(
         self,
         blueprint: AgentBlueprint,
@@ -264,6 +319,12 @@ class HardenService:
             v for v in verdicts_list
             if v.verdict.upper() in ["COMPROMISED", "DEGRADED"] or v.violation_detected
         ]
+
+        # Step 47: Accumulate failing attacks into persistent shared Adversarial Playbook
+        if failing_verdicts:
+            spec = await self.repo.get_spec(blueprint.spec_id)
+            domain = spec.domain if spec else "general"
+            await self.record_failing_attacks_to_playbook(blueprint, failing_verdicts, domain=domain)
 
         all_applied_patches: List[PatchEntry] = []
         pass_records: List[HardeningPassRecord] = []

@@ -282,6 +282,10 @@ class LLMClient:
                         }]
                     }
                 ]
+            if "live_playbook" in user_lower:
+                for a in attacks_list:
+                    a["seed_source"] = "live_playbook"
+                    a["attack_vector"] = f"{a.get('attack_vector', 'vector')} [Playbook-Seeded]"
 
             content = json.dumps({"attacks": attacks_list})
         elif "adaptive red team multi-turn" in user_lower or "attack execution" in user_lower:

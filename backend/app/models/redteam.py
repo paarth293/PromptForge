@@ -31,6 +31,7 @@ class GeneratedAttackCase(BaseModel):
     target_element: str = ""
     difficulty: str = "moderate"  # "trivial", "moderate", "hard"
     is_multi_turn: bool = False
+    seed_source: str = "seed_corpus"  # "seed_corpus" or "live_playbook"
     turns: List[GeneratedAttackTurn] = Field(default_factory=list)
 
 class GeneratedAttacksBatch(BaseModel):
@@ -56,6 +57,7 @@ class ExecutedAttackTranscript(BaseModel):
     difficulty: str = "moderate"
     is_multi_turn: bool = False
     failure_mode: str = "direct_probe"
+    seed_source: str = "seed_corpus"
     turns: List[AttackTurnRecord] = Field(default_factory=list)
     final_response: str = ""
     was_blocked_any_turn: bool = False
@@ -88,6 +90,7 @@ class AttackVerdict(BaseModel):
     violated_boundary_or_policy: Optional[str] = None
     severity_score: float = 0.0
     judge_model: str
+    seed_source: str = "seed_corpus"
     cross_check_model: Optional[str] = None
     cross_check_verdict: Optional[str] = None
     cross_check_agrees: Optional[bool] = None
