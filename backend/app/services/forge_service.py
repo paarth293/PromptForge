@@ -7,8 +7,13 @@ from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
-from ..models.blueprint import Guardrail, ToolSchema
-from ..models.chain_outputs import GuardrailsOutput, SystemPromptOutput, ToolSchemaOutput
+from ..models.blueprint import FewShotConversation, FewShotMessage, Guardrail, ToolSchema
+from ..models.chain_outputs import (
+    FewShotExamplesOutput,
+    GuardrailsOutput,
+    SystemPromptOutput,
+    ToolSchemaOutput,
+)
 from ..models.spec import AgentSpec
 from ..models.test_set import GeneratedTestSuite, TestCase
 
@@ -190,3 +195,48 @@ class ForgeService:
 
         logger.info(f"Generated and validated {len(validated_guardrails)} guardrails for spec {spec.spec_id}.")
         return validated_guardrails
+
+    async def generate_few_shot_examples(
+        self,
+        spec: AgentSpec,
+        model: str = "gpt-4o"
+    ) -> List[FewShotConversation]:
+        """
+        Executes Chain 5: Generates 5 canonical few-shot exemplar conversations
+        (happy_path, edge_case, adversarial_block, tool_use, escalation).
+        """
+        spec_json = spec.model_dump_json(indent=2)
+        prompt = self.registry.render(
+            "chain_5_few_shot_generation",
+            spec_json=spec_json
+        )
+        output = await execute_chain_with_retry(
+            client=self.llm,
+            prompt=prompt,
+            schema_class=FewShotExamplesOutput,
+            model=model
+        )
+        conversations: List[FewShotConversation] = []
+        for ex in output.examples:
+            msgs = [
+                FewShotMessage(role=m.get("role", "user"), content=m.get("content", ""))
+                for m in ex.messages
+            ]
+            conversations.append(FewShotConversation(
+                scenario_type=ex.scenario_type,
+                messages=msgs
+            ))
+        logger.info(f"Generated {len(conversations)} few-shot exemplar conversations for spec {spec.spec_id}.")
+        return conversations
+
+
+def format_few_shot_examples_block(examples: List[FewShotConversation]) -> str:
+    """Formats few-shot exemplar dialogues into a readable block to fold into system prompts."""
+    lines = ["\n\n### Canonical Few-Shot Exemplar Dialogues"]
+    for i, ex in enumerate(examples, 1):
+        clean_scenario = ex.scenario_type.replace("_", " ").title()
+        lines.append(f"\n#### Exemplar {i} ({clean_scenario}):")
+        for msg in ex.messages:
+            lines.append(f"**{msg.role.capitalize()}**: {msg.content}")
+    return "\n".join(lines)
+
