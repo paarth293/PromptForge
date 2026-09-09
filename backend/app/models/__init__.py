@@ -21,7 +21,12 @@ from .runtime import ChatMessage, ChatRequest, ChatResponse, SimulatedToolCall
 from .shield import PolicyObject
 from .spec import AgentSpec, Capability
 from .test_set import GeneratedTestSuite, TestCase
-from .verify import VerificationScorecard
+from .verify import (
+    Chain10EvaluationOutput,
+    GroundTruthCaseResult,
+    GroundTruthEvaluationResult,
+    VerificationScorecard,
+)
 
 __all__ = [
     "AgentSpec",
@@ -44,6 +49,9 @@ __all__ = [
     "HardeningLog",
     "PatchEntry",
     "VerificationScorecard",
+    "Chain10EvaluationOutput",
+    "GroundTruthCaseResult",
+    "GroundTruthEvaluationResult",
     "PolicyObject",
     "AuditEvent",
     "BirthCertificate",
