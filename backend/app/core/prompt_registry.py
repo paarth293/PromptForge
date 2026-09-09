@@ -43,6 +43,18 @@ class PromptRegistry:
                     content = f.read()
                 break
 
+        # Fallback: search recursively in subdirectories
+        if content is None:
+            for root, _, files in os.walk(self.prompts_dir):
+                for ext in candidate_extensions:
+                    target_file = f"{prompt_name}{ext}"
+                    if target_file in files:
+                        with open(os.path.join(root, target_file), "r", encoding="utf-8") as f:
+                            content = f.read()
+                        break
+                if content is not None:
+                    break
+
         if content is None:
             raise FileNotFoundError(
                 f"Prompt template '{prompt_name}' not found in directory: {self.prompts_dir}"

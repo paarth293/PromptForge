@@ -5,6 +5,17 @@ from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
+class AttackPromptTurn(BaseModel):
+    turn: int = 1
+    prompt: str
+    intended_violation: str
+
+class AttackerPersonaOutput(BaseModel):
+    persona: str
+    attack_vector: str
+    difficulty: str = "moderate"
+    attack_prompts: List[AttackPromptTurn] = Field(default_factory=list)
+
 class AttackVerdict(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     category: str  # "injection", "hijack", "extraction", "boundary", "multilingual"
