@@ -21,10 +21,11 @@ import RedTeamFeed from '../components/RedTeamFeed';
 import HardeningLogView, { HardeningLogData } from '../components/HardeningLogView';
 import VerificationScorecardView, { VerificationScorecardData } from '../components/VerificationScorecardView';
 import AuditModeEntry from '../components/AuditModeEntry';
+import DeepForgeLineageViewer from '../components/DeepForgeLineageViewer';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify';
+type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify' | 'evolve';
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
@@ -287,6 +288,13 @@ export default function HomePage() {
             <span className={`px-2.5 py-1 rounded-lg ${stage === 'verify' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
               7. Verify
             </span>
+            <span>→</span>
+            <button
+              onClick={() => setStage('evolve')}
+              className={`px-2.5 py-1 rounded-lg transition ${stage === 'evolve' ? 'bg-purple-600 text-white' : 'bg-[#151C2C] hover:bg-slate-800'}`}
+            >
+              8. Deep Forge
+            </button>
           </div>
         ) : (
           <div className="hidden sm:flex items-center gap-2 text-xs font-medium text-slate-400">
@@ -581,6 +589,26 @@ export default function HomePage() {
               onBackToHardening={hardeningLog ? () => setStage('harden') : undefined}
               onRerunVerify={handleRunVerification}
               loading={loading}
+            />
+          </div>
+        )}
+
+        {/* STAGE 8: EVOLVE Deep Forge Lineage Viewer */}
+        {stage === 'evolve' && (
+          <div className="w-full animate-in fade-in duration-300">
+            <DeepForgeLineageViewer
+              specId={spec?.spec_id}
+              onSelectChampion={(championCand) => {
+                if (blueprint) {
+                  setBlueprint({
+                    ...blueprint,
+                    blueprint_id: championCand.blueprint_id,
+                    agent_name: `${spec?.agent_name || 'Agent'} [Deep Forge Champion]`,
+                    system_prompt: championCand.system_prompt,
+                  });
+                  setStage('chat');
+                }
+              }}
             />
           </div>
         )}
