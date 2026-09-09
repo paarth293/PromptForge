@@ -78,7 +78,28 @@ async def decompose_endpoint(
     spec = await service.decompose_intent(description=req.description, tenant_id=tenant_id)
     return spec
 
+@app.post("/api/forge/confirm", response_model=AgentSpec)
+async def confirm_spec_endpoint(
+    spec: AgentSpec,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    service = ForgeService()
+    confirmed = await service.confirm_spec(spec)
+    return confirmed
+
 # Spec and Blueprint Endpoints
+@app.get("/api/specs/{spec_id}", response_model=AgentSpec)
+async def get_spec_endpoint(
+    spec_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    spec = await repo.get_spec(spec_id)
+    if not spec:
+        raise HTTPException(status_code=404, detail="Spec not found")
+    verify_tenant_access(spec.tenant_id, tenant_id)
+    return spec
+
 @app.post("/api/specs")
 async def create_spec_endpoint(
     spec: AgentSpec,
