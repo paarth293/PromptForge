@@ -44,10 +44,29 @@ class AgentRuntimeService:
                         return True, processed_text, rail.name
                     elif rail.action == "redact":
                         processed_text = re.sub(rail.pattern_or_rule, "[REDACTED]", processed_text, flags=re.IGNORECASE)
-                        logger.info(f"Middleware guardrail '{rail.name}' REDACTED content.")
             except re.error:
-                # If pattern is a condition like 'amount <= 500', treat as condition handled in tool execution
                 pass
+
+            # Check numeric boundary rule e.g. "amount <= 500"
+            num_rule = re.match(r"amount\s*(<=|<)\s*(\d+(?:\.\d+)?)", rail.pattern_or_rule.strip(), re.IGNORECASE)
+            if num_rule and any(w in text.lower() for w in ["refund", "$", "dollar", "pay", "charge"]):
+                op = num_rule.group(1)
+                limit = float(num_rule.group(2))
+                dollar_match = re.search(
+                    r"\$\s*(\d+(?:\.\d+)?)|(?:refund|charge|amount)\s+(?:of\s+)?(\d+(?:\.\d+)?)",
+                    text,
+                    re.IGNORECASE
+                )
+                if dollar_match:
+                    amount_str = dollar_match.group(1) or dollar_match.group(2)
+                    req_amount = float(amount_str)
+                    if (op == "<=" and req_amount > limit) or (op == "<" and req_amount >= limit):
+                        if rail.action == "block":
+                            logger.warning(
+                                f"Middleware guardrail '{rail.name}' BLOCKED input: "
+                                f"amount ${req_amount} exceeds limit ${limit}"
+                            )
+                            return True, processed_text, rail.name
 
         return False, processed_text, None
 

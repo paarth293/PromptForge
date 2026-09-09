@@ -13,7 +13,7 @@ class TestCase(BaseModel):
 
 class GeneratedTestSuite(BaseModel):
     suite_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    spec_id: str
+    spec_id: str = ""
     gold_cases: List[TestCase] = Field(default_factory=list)
     edge_cases: List[TestCase] = Field(default_factory=list)
     total_cases: int = 0

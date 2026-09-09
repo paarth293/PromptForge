@@ -226,6 +226,7 @@ class LLMClient:
             })
         elif "adversarial qa methodologist" in user_lower or "test designer" in user_lower:
             content = json.dumps({
+                "spec_id": "spec-mock",
                 "gold_cases": [
                     {
                         "case_id": "gold-1",
