@@ -13,6 +13,7 @@ from .deployment import DeploymentPackage
 from .dossier import AgentDossier
 from .evolve import (
     PROMPT_STRATEGIES,
+    CrossoverRecombinationOutput,
     DeepForgeRunRequest,
     EvolveCandidate,
     EvolveGenerationRecord,
@@ -114,6 +115,7 @@ __all__ = [
     "MonitorAlert",
     "MonitorHistoryResponse",
     "ReviewAlertRequest",
+    "CrossoverRecombinationOutput",
     "EvolveCandidate",
     "EvolveGenerationRecord",
     "EvolveLineageLog",

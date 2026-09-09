@@ -71,3 +71,12 @@ class DeepForgeRunRequest(BaseModel):
     attacks_per_candidate: int = 4
     is_background: bool = True
     cached_demo_preferred: bool = True
+
+
+class CrossoverRecombinationOutput(BaseModel):
+    offspring_system_prompt: str
+    word_count: int
+    inherited_from_parent_a: List[str] = Field(default_factory=list)
+    inherited_from_parent_b: List[str] = Field(default_factory=list)
+    recombination_rationale: str = ""
+

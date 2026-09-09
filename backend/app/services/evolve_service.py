@@ -2,7 +2,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
@@ -13,6 +13,7 @@ from ..models.blueprint import AgentBlueprint
 from ..models.chain_outputs import SystemPromptOutput
 from ..models.evolve import (
     PROMPT_STRATEGIES,
+    CrossoverRecombinationOutput,
     EvolveCandidate,
     PopulationGeneratorResult,
 )
@@ -179,7 +180,7 @@ class EvolveService:
                     "parent_blueprint_id": base_blueprint.blueprint_id,
                     "agent_name": f"{spec.agent_name} ({strategy.replace('_', ' ').title()})",
                     "system_prompt": prompt_out.system_prompt,
-                    "revision": 1,
+                    "version": 1,
                     "created_at": now,
                 }
             )
@@ -338,4 +339,114 @@ class EvolveService:
         ]
         evaluated = await asyncio.gather(*tasks)
         return sorted(evaluated, key=lambda c: (c.fitness_score or 0.0), reverse=True)
+
+    async def perform_crossover(
+        self,
+        parent_a: EvolveCandidate,
+        parent_b: EvolveCandidate,
+        spec: AgentSpec,
+        generation: int = 1,
+        model: str = "gpt-4o",
+        base_blueprint: Optional[AgentBlueprint] = None,
+    ) -> Tuple[EvolveCandidate, AgentBlueprint]:
+        """
+        Step 80: Crossover chain (LLM-guided recombination):
+        Takes two high-fitness candidate prompts and produces a merged offspring
+        candidate combining Parent A's security/boundary defense and Parent B's
+        operational task-flow/empathy.
+
+        NOTE: This is LLM-guided semantic recombination synthesizing complementary
+        strengths of two parent candidates, not a literal genetic-algorithm bitstring crossover.
+        """
+        p_a_strengths = (
+            f"Fitness: {parent_a.fitness_score or 0.0:.1f}/100, "
+            f"Survival: {(parent_a.survival_rate or 0.0)*100:.1f}%, "
+            f"Strategy: {parent_a.strategy}"
+        )
+        p_b_strengths = (
+            f"Fitness: {parent_b.fitness_score or 0.0:.1f}/100, "
+            f"Goal: {(parent_b.goal_completion_rate or 0.0)*100:.1f}%, "
+            f"Strategy: {parent_b.strategy}"
+        )
+
+        prompt = self.registry.render(
+            "chain_2_evolve_crossover",
+            spec_json=spec.model_dump_json(indent=2),
+            parent_a_strategy=parent_a.strategy,
+            parent_a_strengths=p_a_strengths,
+            parent_a_prompt=parent_a.system_prompt,
+            parent_b_strategy=parent_b.strategy,
+            parent_b_strengths=p_b_strengths,
+            parent_b_prompt=parent_b.system_prompt,
+        )
+
+        recomb_res = await execute_chain_with_retry(
+            client=self.llm,
+            prompt=prompt,
+            schema_class=CrossoverRecombinationOutput,
+            model=model,
+            system_prompt="You are an elite prompt compiler performing LLM-guided candidate recombination for Deep Forge.",
+        )
+
+        if not base_blueprint:
+            base_blueprint = await self.repo.get_blueprint(parent_a.blueprint_id)
+            if not base_blueprint:
+                base_blueprint = await self.repo.get_blueprint(parent_b.blueprint_id)
+
+        now = datetime.now(timezone.utc)
+        offspring_id = f"CAND-G{generation}-CROSS-{uuid.uuid4().hex[:6].upper()}"
+        cand_bp_id = f"ag-evolve-{spec.spec_id[-8:]}-g{generation}-c{uuid.uuid4().hex[:4]}"
+
+        if base_blueprint:
+            cand_bp = base_blueprint.model_copy(
+                update={
+                    "blueprint_id": cand_bp_id,
+                    "parent_blueprint_id": parent_a.blueprint_id,
+                    "agent_name": f"{spec.agent_name} (Recombinant G{generation})",
+                    "system_prompt": recomb_res.offspring_system_prompt,
+                    "version": (base_blueprint.version or 1) + 1,
+                    "created_at": now,
+                }
+            )
+        else:
+            cand_bp = AgentBlueprint(
+                blueprint_id=cand_bp_id,
+                spec_id=spec.spec_id,
+                tenant_id=spec.tenant_id,
+                agent_name=f"{spec.agent_name} (Recombinant G{generation})",
+                system_prompt=recomb_res.offspring_system_prompt,
+                tools=[],
+                guardrails=[],
+                version=generation + 1,
+                created_at=now,
+            )
+
+        cand_bp.blueprint_hash = compute_sha256(cand_bp.model_dump(mode="json"))
+        await self.repo.save_blueprint(cand_bp)
+
+        offspring_cand = EvolveCandidate(
+            candidate_id=offspring_id,
+            spec_id=spec.spec_id,
+            blueprint_id=cand_bp_id,
+            generation=generation,
+            strategy=f"recombinant_{parent_a.strategy}_{parent_b.strategy}",
+            system_prompt=recomb_res.offspring_system_prompt,
+            parent_ids=[parent_a.candidate_id, parent_b.candidate_id],
+            mutation_type="crossover",
+            mutation_details=(
+                f"LLM-guided recombination of {parent_a.candidate_id} ({parent_a.strategy}) and "
+                f"{parent_b.candidate_id} ({parent_b.strategy}). "
+                f"Inherited A: {', '.join(recomb_res.inherited_from_parent_a)}. "
+                f"Inherited B: {', '.join(recomb_res.inherited_from_parent_b)}. "
+                f"Rationale: {recomb_res.recombination_rationale}"
+            ),
+            created_at=now,
+        )
+
+        logger.info(
+            f"Crossover synthesized candidate {offspring_cand.candidate_id} from parents "
+            f"{parent_a.candidate_id} and {parent_b.candidate_id}."
+        )
+        return offspring_cand, cand_bp
+
 
