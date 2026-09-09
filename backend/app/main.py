@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .config import settings
@@ -15,8 +16,9 @@ from .core.logging import setup_logging
 from .core.tenancy import get_current_tenant_id, verify_tenant_access
 from .db.repository import PipelineRepository
 from .db.session import init_db
-from .models import AgentBlueprint, AgentSpec, ChatRequest, ChatResponse
+from .models import AgentBlueprint, AgentSpec, ChatRequest, ChatResponse, RedTeamReport
 from .services.forge_service import ForgeService
+from .services.redteam_service import RedTeamService
 from .services.runtime_service import AgentRuntimeService
 
 setup_logging()
@@ -162,6 +164,99 @@ async def agent_chat_endpoint(
     verify_tenant_access(bp.tenant_id, tenant_id)
     service = AgentRuntimeService(repo=repo)
     return await service.chat(blueprint_id=blueprint_id, request=req)
+
+
+# Red Team Endpoints
+class RedTeamRunRequest(BaseModel):
+    attacks_per_persona: int = 3
+    generator_model: str = "gpt-4o"
+    include_ollama: bool = True
+    concurrency: int = 8
+    cross_check_sample_rate: float = 0.20
+
+
+@app.post("/api/redteam/run/{blueprint_id}", response_model=RedTeamReport)
+async def run_redteam_campaign_endpoint(
+    blueprint_id: str,
+    req: RedTeamRunRequest = RedTeamRunRequest(),
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    service = RedTeamService(repo=repo)
+    report = await service.run_full_redteam_campaign(
+        blueprint=bp,
+        attacks_per_persona=req.attacks_per_persona,
+        generator_model=req.generator_model,
+        include_ollama=req.include_ollama,
+        concurrency=req.concurrency,
+        cross_check_sample_rate=req.cross_check_sample_rate
+    )
+    return report
+
+
+@app.get("/api/redteam/stream/{blueprint_id}")
+async def stream_redteam_campaign_endpoint(
+    blueprint_id: str,
+    attacks_per_persona: int = 3,
+    generator_model: str = "gpt-4o",
+    include_ollama: bool = True,
+    concurrency: int = 8,
+    cross_check_sample_rate: float = 0.20,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    service = RedTeamService(repo=repo)
+
+    async def sse_event_generator():
+        import json
+        async for event in service.stream_full_redteam_campaign(
+            blueprint=bp,
+            attacks_per_persona=attacks_per_persona,
+            generator_model=generator_model,
+            include_ollama=include_ollama,
+            concurrency=concurrency,
+            cross_check_sample_rate=cross_check_sample_rate
+        ):
+            payload = json.dumps(event)
+            yield f"data: {payload}\n\n"
+
+    return StreamingResponse(sse_event_generator(), media_type="text/event-stream")
+
+
+@app.get("/api/redteam/reports/{report_id}", response_model=RedTeamReport)
+async def get_redteam_report_endpoint(
+    report_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    report = await repo.get_redteam_report(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="RedTeamReport not found")
+    verify_tenant_access(report.tenant_id, tenant_id)
+    return report
+
+
+@app.get("/api/redteam/reports/blueprint/{blueprint_id}", response_model=RedTeamReport)
+async def get_latest_blueprint_report_endpoint(
+    blueprint_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    report = await repo.get_latest_redteam_report_by_blueprint(blueprint_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="No RedTeamReport found for this blueprint")
+    verify_tenant_access(report.tenant_id, tenant_id)
+    return report
 
 
 if __name__ == "__main__":

@@ -3,12 +3,13 @@ import logging
 import math
 import random
 import uuid
-from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
+from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
 import httpx
 
 from ..config import settings
 from ..core.concurrent_runner import run_concurrent_sessions
+from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
 from ..core.judge_assignment import select_judge_model
 from ..core.prompt_registry import get_prompt_registry
@@ -23,6 +24,7 @@ from ..models.redteam import (
     ExecutedAttackTranscript,
     GeneratedAttackCase,
     GeneratedAttacksBatch,
+    RedTeamReport,
 )
 from ..models.runtime import ChatMessage, ChatRequest
 from .runtime_service import AgentRuntimeService
@@ -491,5 +493,220 @@ class RedTeamService:
             f"({agreement_rate * 100:.1f}% agreement rate)."
         )
         return verdicts, round(agreement_rate, 4)
+
+    def assemble_redteam_report(
+        self,
+        blueprint: AgentBlueprint,
+        verdicts: List[AttackVerdict],
+        difficulty_mix: Optional[Dict[str, int]] = None,
+        cross_check_agreement_rate: Optional[float] = None
+    ) -> RedTeamReport:
+        """
+        Assembles the comprehensive RedTeamReport with per-category breakdown,
+        difficulty mix, survival rate, and deterministic SHA-256 tamper-evident hash.
+        """
+        total_attacks = len(verdicts)
+        blocked_count = sum(1 for v in verdicts if v.verdict.upper() == "BLOCKED")
+        degraded_count = sum(1 for v in verdicts if v.verdict.upper() == "DEGRADED")
+        compromised_count = sum(1 for v in verdicts if v.verdict.upper() == "COMPROMISED")
+        survival_rate = round((blocked_count / total_attacks) if total_attacks > 0 else 1.0, 4)
+
+        category_breakdown: Dict[str, Dict[str, int]] = {}
+        for v in verdicts:
+            cat = v.category or "uncategorized"
+            if cat not in category_breakdown:
+                category_breakdown[cat] = {"BLOCKED": 0, "DEGRADED": 0, "COMPROMISED": 0, "total": 0}
+            vrd = v.verdict.upper()
+            if vrd in category_breakdown[cat]:
+                category_breakdown[cat][vrd] += 1
+            category_breakdown[cat]["total"] += 1
+
+        report_payload = {
+            "blueprint_id": blueprint.blueprint_id,
+            "tenant_id": blueprint.tenant_id,
+            "total_attacks": total_attacks,
+            "blocked_count": blocked_count,
+            "degraded_count": degraded_count,
+            "compromised_count": compromised_count,
+            "survival_rate": survival_rate,
+            "category_breakdown": category_breakdown,
+            "difficulty_mix": difficulty_mix or {},
+            "cross_check_agreement_rate": cross_check_agreement_rate,
+            "verdict_ids": [v.id for v in verdicts]
+        }
+        report_hash = compute_sha256(report_payload)
+
+        report = RedTeamReport(
+            report_id=f"rep-redteam-{uuid.uuid4().hex[:8]}",
+            blueprint_id=blueprint.blueprint_id,
+            tenant_id=blueprint.tenant_id,
+            total_attacks=total_attacks,
+            blocked_count=blocked_count,
+            degraded_count=degraded_count,
+            compromised_count=compromised_count,
+            survival_rate=survival_rate,
+            category_breakdown=category_breakdown,
+            difficulty_mix=difficulty_mix or {},
+            attack_verdicts=verdicts,
+            cross_check_agreement_rate=cross_check_agreement_rate,
+            report_hash=report_hash
+        )
+        return report
+
+    async def run_full_redteam_campaign(
+        self,
+        blueprint: AgentBlueprint,
+        attacks_per_persona: int = 3,
+        generator_model: str = "gpt-4o",
+        include_ollama: bool = True,
+        concurrency: int = 8,
+        cross_check_sample_rate: float = 0.20
+    ) -> RedTeamReport:
+        """
+        Runs the end-to-end Red Team pipeline:
+        Generate -> Quality Gate -> Concurrent Multi-turn Attack -> Impartial Judge -> Cross Check -> Assemble Report -> Persist.
+        """
+        raw_attacks = await self.generate_full_campaign(
+            blueprint=blueprint,
+            attacks_per_persona=attacks_per_persona,
+            model=generator_model,
+            include_ollama=include_ollama
+        )
+        gate_res = self.apply_quality_gate(blueprint, raw_attacks)
+        passed_attacks = gate_res.passed_attacks
+
+        transcripts = await self.execute_attack_batch_concurrently(
+            blueprint=blueprint,
+            attacks=passed_attacks,
+            concurrency=concurrency
+        )
+
+        verdicts = await self.judge_transcripts_batch(
+            blueprint=blueprint,
+            transcripts=transcripts,
+            generator_model=generator_model,
+            concurrency=concurrency
+        )
+
+        enriched_verdicts, agreement_rate = await self.perform_judge_cross_check(
+            blueprint=blueprint,
+            transcripts=transcripts,
+            verdicts=verdicts,
+            sample_rate=cross_check_sample_rate
+        )
+
+        report = self.assemble_redteam_report(
+            blueprint=blueprint,
+            verdicts=enriched_verdicts,
+            difficulty_mix=gate_res.difficulty_counts,
+            cross_check_agreement_rate=agreement_rate
+        )
+        await self.repo.save_redteam_report(report)
+        return report
+
+    async def stream_full_redteam_campaign(
+        self,
+        blueprint: AgentBlueprint,
+        attacks_per_persona: int = 3,
+        generator_model: str = "gpt-4o",
+        include_ollama: bool = True,
+        concurrency: int = 8,
+        cross_check_sample_rate: float = 0.20
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Streams live Red Team campaign events in real time as each attack is executed and judged.
+        """
+        yield {
+            "type": "status",
+            "stage": "generating",
+            "message": "Generating adversarial attack vectors across diverse attacker personas..."
+        }
+
+        raw_attacks = await self.generate_full_campaign(
+            blueprint=blueprint,
+            attacks_per_persona=attacks_per_persona,
+            model=generator_model,
+            include_ollama=include_ollama
+        )
+
+        yield {
+            "type": "status",
+            "stage": "quality_gating",
+            "message": "Applying attack quality gate: verifying target surfaces and eliminating duplicates..."
+        }
+
+        gate_res = self.apply_quality_gate(blueprint, raw_attacks)
+        passed_attacks = gate_res.passed_attacks
+
+        yield {
+            "type": "campaign_init",
+            "total_attacks": len(passed_attacks),
+            "difficulty_mix": gate_res.difficulty_counts,
+            "rejected_off_target": len(gate_res.rejected_off_target),
+            "rejected_duplicates": len(gate_res.rejected_duplicates)
+        }
+
+        yield {
+            "type": "status",
+            "stage": "attacking",
+            "message": f"Executing {len(passed_attacks)} attacks concurrently and streaming live verdicts..."
+        }
+
+        transcripts: List[ExecutedAttackTranscript] = []
+        verdicts: List[AttackVerdict] = []
+        completed_count = 0
+
+        # Stream attack execution and immediately judge each one
+        async for _, transcript in self.stream_attack_execution(
+            blueprint=blueprint,
+            attacks=passed_attacks,
+            concurrency=concurrency
+        ):
+            transcripts.append(transcript)
+            verdict = await self.judge_attack_transcript(
+                blueprint=blueprint,
+                transcript=transcript,
+                generator_model=generator_model
+            )
+            verdicts.append(verdict)
+            completed_count += 1
+
+            yield {
+                "type": "verdict",
+                "completed": completed_count,
+                "total": len(passed_attacks),
+                "verdict": verdict.model_dump(mode="json")
+            }
+
+        yield {
+            "type": "status",
+            "stage": "cross_checking",
+            "message": "Selecting 20% sample for independent judge cross-checking..."
+        }
+
+        enriched_verdicts, agreement_rate = await self.perform_judge_cross_check(
+            blueprint=blueprint,
+            transcripts=transcripts,
+            verdicts=verdicts,
+            sample_rate=cross_check_sample_rate
+        )
+
+        yield {
+            "type": "cross_check_complete",
+            "agreement_rate": agreement_rate
+        }
+
+        report = self.assemble_redteam_report(
+            blueprint=blueprint,
+            verdicts=enriched_verdicts,
+            difficulty_mix=gate_res.difficulty_counts,
+            cross_check_agreement_rate=agreement_rate
+        )
+        await self.repo.save_redteam_report(report)
+
+        yield {
+            "type": "report_ready",
+            "report": report.model_dump(mode="json")
+        }
 
 

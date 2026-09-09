@@ -12,7 +12,8 @@ import {
   RotateCcw,
   Sparkles,
   AlertTriangle,
-  Fingerprint
+  Fingerprint,
+  Flame
 } from 'lucide-react';
 
 export interface ToolCallData {
@@ -42,12 +43,14 @@ export interface BlueprintInfo {
 interface Props {
   blueprint: BlueprintInfo;
   onReset: () => void;
+  onLaunchRedTeam?: () => void;
   apiBaseUrl?: string;
 }
 
 export default function AgentChatWindow({
   blueprint,
   onReset,
+  onLaunchRedTeam,
   apiBaseUrl = 'http://localhost:8000'
 }: Props) {
   const [messages, setMessages] = useState<MessageItem[]>([
@@ -165,13 +168,24 @@ export default function AgentChatWindow({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onReset}
-          className="px-3 py-1.5 rounded-lg border border-[#232D42] bg-[#1B2333] hover:bg-[#232D42] text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
-        >
-          <RotateCcw className="w-3.5 h-3.5" /> Forge Another
-        </button>
+        <div className="flex items-center gap-2">
+          {onLaunchRedTeam && (
+            <button
+              type="button"
+              onClick={onLaunchRedTeam}
+              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs font-semibold text-white flex items-center gap-1.5 shadow-md shadow-red-600/20 transition-colors"
+            >
+              <Flame className="w-3.5 h-3.5" /> Stage 2: Red Team
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onReset}
+            className="px-3 py-1.5 rounded-lg border border-[#232D42] bg-[#1B2333] hover:bg-[#232D42] text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Forge Another
+          </button>
+        </div>
       </div>
 
       {/* Messages Thread */}

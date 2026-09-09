@@ -11,14 +11,16 @@ import {
   Loader2,
   Terminal,
   Cpu,
-  RefreshCw
+  RefreshCw,
+  Flame
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
+import RedTeamFeed from '../components/RedTeamFeed';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat';
+type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam';
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
@@ -221,8 +223,12 @@ export default function HomePage() {
             3. Forge
           </span>
           <span>→</span>
-          <span className={`px-2.5 py-1 rounded-lg ${stage === 'chat' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
+          <span className={`px-2.5 py-1 rounded-lg ${stage === 'chat' ? 'bg-blue-600 text-white' : 'bg-[#151C2C]'}`}>
             4. Live Chat
+          </span>
+          <span>→</span>
+          <span className={`px-2.5 py-1 rounded-lg ${stage === 'redteam' ? 'bg-red-600 text-white' : 'bg-[#151C2C]'}`}>
+            5. Red Team
           </span>
         </div>
       </header>
@@ -381,7 +387,19 @@ export default function HomePage() {
             <AgentChatWindow
               blueprint={blueprint}
               onReset={handleReset}
+              onLaunchRedTeam={() => setStage('redteam')}
               apiBaseUrl={API_BASE_URL}
+            />
+          </div>
+        )}
+
+        {/* STAGE 5: Live Streaming Red Team Feed */}
+        {stage === 'redteam' && blueprint && (
+          <div className="w-full animate-in fade-in duration-300">
+            <RedTeamFeed
+              blueprintId={blueprint.blueprint_id}
+              agentName={blueprint.agent_name}
+              onBackToChat={() => setStage('chat')}
             />
           </div>
         )}

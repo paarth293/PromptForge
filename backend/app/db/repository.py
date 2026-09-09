@@ -105,6 +105,18 @@ class PipelineRepository:
                 return RedTeamReport.model_validate_json(row[0])
             return None
 
+    async def get_latest_redteam_report_by_blueprint(self, blueprint_id: str) -> Optional[RedTeamReport]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT data_json FROM redteam_reports WHERE blueprint_id = ? ORDER BY created_at DESC LIMIT 1;",
+                (blueprint_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                return RedTeamReport.model_validate_json(row[0])
+            return None
+
     # HardeningLog
     async def save_hardening_log(self, log: HardeningLog):
         async with self._connect() as conn:
