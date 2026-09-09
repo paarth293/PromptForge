@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import Dict, List, Optional
 
 from ..core.errors import ValidationException
@@ -114,8 +114,10 @@ class AuditPipelineService:
                     patch_log=hardening_log,
                 )
 
-        # 3. Stage 3: VERIFY (Non-Circular Quality Gate)
-        gt_res = await self.verify_service.evaluate_ground_truth(blueprint=active_bp, spec=spec)
+        # 3. Stage 3: VERIFY (Non-Circular Quality Gate with Step 70 Owner Gold as Primary)
+        gt_res = await self.verify_service.evaluate_ground_truth(
+            blueprint=active_bp, spec=spec, is_audit_mode=True
+        )
         task_prompt = (
             spec.user_gold_qa[0]["question"]
             if spec.user_gold_qa
@@ -135,6 +137,7 @@ class AuditPipelineService:
             adversarial_survival_score=(report.blocked_count, report.total_attacks),
             alignment_audit=audit_res,
             persist=True,
+            is_audit_mode=True,
         )
         await self.audit_service.record_verification_result(scorecard=scorecard, tenant_id=tenant_id)
 

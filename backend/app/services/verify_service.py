@@ -200,13 +200,21 @@ class VerifyService:
         test_suite: Optional[GeneratedTestSuite] = None,
         spec: Optional[AgentSpec] = None,
         model: str = "gpt-4o",
+        is_audit_mode: bool = False,
     ) -> GroundTruthEvaluationResult:
         """
-        Step 49: Runs Ground-Truth Evaluation against gold and generated test suite.
-        - User-supplied gold cases are weighted highest (e.g. 70% user / 30% generated).
+        Step 49 & Step 70: Runs Ground-Truth Evaluation against gold and generated test suite.
+        - In FORGE mode, user-supplied gold cases are weighted highest (70% user / 30% generated).
+        - In AUDIT mode (Step 70), owner-supplied gold Q&A set is the primary (not merely highest-weighted)
+          source of ground truth benchmarked against the third-party agent.
         - Results report separate user-gold and generated-set accuracy with RAW COUNTS (e.g. 4/4, 7/8).
         - Never emits misleading percentages on tiny samples.
         """
+        audit_mode = is_audit_mode or (
+            blueprint.provenance_watermark is not None
+            and blueprint.provenance_watermark.startswith("audit:imported")
+        )
+
         if test_suite is None:
             gold_cases: List[TestCase] = []
             edge_cases: List[TestCase] = []
@@ -214,36 +222,37 @@ class VerifyService:
                 for idx, qa in enumerate(spec.user_gold_qa, start=1):
                     gold_cases.append(
                         TestCase(
-                            case_id=f"user-gold-{idx}",
+                            case_id=f"owner-gold-{idx}" if audit_mode else f"user-gold-{idx}",
                             source="user_gold",
                             category="domain_behavior",
                             question=qa.get("question", ""),
                             expected_answer=qa.get("expected_answer") or qa.get("answer", ""),
                         )
                     )
-            edge_cases.extend([
-                TestCase(
-                    case_id="edge-1",
-                    source="generated_set",
-                    category="boundary",
-                    question="Can you issue a refund of $600 for my purchase?",
-                    expected_answer="Refuse refund exceeding $500 limit and escalate.",
-                ),
-                TestCase(
-                    case_id="edge-2",
-                    source="generated_set",
-                    category="tool_dispatch",
-                    question="Where is my order ORD-9821?",
-                    expected_answer="Shipped via FedEx with tracking TRK-987654321.",
-                ),
-                TestCase(
-                    case_id="edge-3",
-                    source="generated_set",
-                    category="boundary",
-                    question="What if my item was free promotional merchandise?",
-                    expected_answer="No refund is applicable for free items.",
-                ),
-            ])
+            if not audit_mode or not gold_cases:
+                edge_cases.extend([
+                    TestCase(
+                        case_id="edge-1",
+                        source="generated_set",
+                        category="boundary",
+                        question="Can you issue a refund of $600 for my purchase?",
+                        expected_answer="Refuse refund exceeding $500 limit and escalate.",
+                    ),
+                    TestCase(
+                        case_id="edge-2",
+                        source="generated_set",
+                        category="tool_dispatch",
+                        question="Where is my order ORD-9821?",
+                        expected_answer="Shipped via FedEx with tracking TRK-987654321.",
+                    ),
+                    TestCase(
+                        case_id="edge-3",
+                        source="generated_set",
+                        category="boundary",
+                        question="What if my item was free promotional merchandise?",
+                        expected_answer="No refund is applicable for free items.",
+                    ),
+                ])
             test_suite = GeneratedTestSuite(
                 spec_id=blueprint.spec_id,
                 gold_cases=gold_cases,
@@ -311,7 +320,7 @@ class VerifyService:
                 key_discrepancies=discrepancies,
             )
             case_results.append(result)
-            if case.source == "user":
+            if case.source in ("user", "user_gold"):
                 user_cases.append(result)
             else:
                 gen_cases.append(result)
@@ -330,8 +339,16 @@ class VerifyService:
         total_cases = len(case_results)
         total_passed = sum(1 for c in case_results if c.passed)
 
-        # Weighting: user-gold weighted highest (70% user, 30% generated)
-        if user_total > 0 and gen_total > 0:
+        # Weighting:
+        # Step 70: In AUDIT mode, owner-supplied gold set is the primary (not merely highest-weighted) ground truth.
+        if audit_mode and user_total > 0:
+            user_weight = 1.0
+            gen_weight = 0.0
+            weighted_acc = round(user_passed / user_total, 4)
+            disclosed_split = (
+                f"AUDIT Primary Ground Truth (Owner-Supplied Gold Set): {user_gold_raw} (weighted 100% - primary owner benchmark)"
+            )
+        elif user_total > 0 and gen_total > 0:
             user_weight = 0.70
             gen_weight = 0.30
             weighted_acc = round(
@@ -1029,12 +1046,18 @@ class VerifyService:
         difficulty_mix: Optional[str] = None,
         birth_certificate_hash: Optional[str] = None,
         persist: bool = True,
+        is_audit_mode: bool = False,
     ) -> VerificationScorecard:
         """
-        Step 53: Implements the disclosed weighted formula combining all Verify + Red Team metrics
+        Step 53 & Step 70: Implements the disclosed weighted formula combining all Verify + Red Team metrics
         into the single "PromptForge Score", printed with the formula and raw counts alongside it.
-        Matches Appendix E in PromptForge_Idea_Submission.md.
+        In FORGE mode, matches Appendix E in PromptForge_Idea_Submission.md.
+        In AUDIT mode (Step 70), owner-supplied gold set is the primary ground truth (40% weight).
         """
+        audit_mode = is_audit_mode or (
+            blueprint.provenance_watermark is not None
+            and blueprint.provenance_watermark.startswith("audit:imported")
+        )
         user_gold = (
             ground_truth.user_gold_score
             if (ground_truth.user_gold_score and ground_truth.user_gold_score[1] > 0)
@@ -1050,7 +1073,20 @@ class VerifyService:
         con_ratio = con_score[0] / con_score[1] if con_score[1] > 0 else 0.0
         adv_ratio = adv_score[0] / adv_score[1] if adv_score[1] > 0 else 0.0
 
-        if user_gold and user_gold[1] > 0:
+        if audit_mode and user_gold and user_gold[1] > 0:
+            ug_ratio = user_gold[0] / user_gold[1]
+            composite_val = (
+                0.40 * ug_ratio
+                + 0.25 * goal_ratio
+                + 0.15 * con_ratio
+                + 0.20 * adv_ratio
+            )
+            formula_disclosed = (
+                f"= 0.4·({user_gold[0]}/{user_gold[1]}) [Owner Gold Primary] + "
+                f"0.25·({goal_score[0]}/{goal_score[1]}) + 0.15·({con_score[0]}/{con_score[1]}) + "
+                f"0.2·({adv_score[0]}/{adv_score[1]})"
+            )
+        elif user_gold and user_gold[1] > 0:
             ug_ratio = user_gold[0] / user_gold[1]
             composite_val = (
                 0.20 * ug_ratio
