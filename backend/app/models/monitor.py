@@ -28,6 +28,7 @@ class CreateMonitorScheduleRequest(BaseModel):
 class TriggerMonitorRunRequest(BaseModel):
     attacks_per_run: Optional[int] = None
     drift_threshold: float = 0.10
+    check_goal_completion: bool = False
 
 
 class MonitorRunResult(BaseModel):
@@ -39,8 +40,13 @@ class MonitorRunResult(BaseModel):
     baseline_survival_rate: float
     current_survival_rate: float
     survival_delta: float
+    baseline_goal_completion_rate: Optional[float] = None
+    current_goal_completion_rate: Optional[float] = None
+    goal_completion_delta: Optional[float] = None
     drift_detected: bool = False
     drift_severity: str = "none"  # "none", "low", "medium", "high", "critical"
+    drift_reasons: List[str] = Field(default_factory=list)
+    formula_disclosed: Optional[str] = None
     action_taken: str = "none"    # "none", "auto_reharden", "flagged_for_review"
     action_details: Optional[Dict[str, Any]] = None
     report_id: Optional[str] = None

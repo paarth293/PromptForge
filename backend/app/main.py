@@ -771,6 +771,7 @@ async def trigger_monitor_run_endpoint(
         agent_id=agent_id,
         attacks_per_run=req.attacks_per_run or 5,
         drift_threshold=req.drift_threshold,
+        check_goal_completion=req.check_goal_completion,
         tenant_id=tenant_id,
     )
 

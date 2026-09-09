@@ -593,16 +593,29 @@ class PipelineRepository:
 
     # MonitorRunResult
     async def save_monitor_run(self, run: MonitorRunResult):
+        import json
+        details = dict(run.action_details or {})
+        if run.baseline_goal_completion_rate is not None:
+            details["baseline_goal_completion_rate"] = run.baseline_goal_completion_rate
+        if run.current_goal_completion_rate is not None:
+            details["current_goal_completion_rate"] = run.current_goal_completion_rate
+        if run.goal_completion_delta is not None:
+            details["goal_completion_delta"] = run.goal_completion_delta
+        if run.drift_reasons:
+            details["drift_reasons"] = run.drift_reasons
+        if run.formula_disclosed:
+            details["formula_disclosed"] = run.formula_disclosed
+
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
-            import json
             await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO monitor_runs (
                     run_id, schedule_id, agent_id, blueprint_id, tenant_id,
                     baseline_survival_rate, current_survival_rate, survival_delta,
-                    drift_detected, drift_severity, action_taken, action_details, report_id, created_at
+                    drift_detected, drift_severity, action_taken, action_details,
+                    report_id, created_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
@@ -618,7 +631,7 @@ class PipelineRepository:
                     1 if run.drift_detected else 0,
                     run.drift_severity,
                     run.action_taken,
-                    json.dumps(run.action_details) if run.action_details else None,
+                    json.dumps(details) if details else None,
                     run.report_id,
                     run.created_at.isoformat(),
                 ),
@@ -635,6 +648,7 @@ class PipelineRepository:
             )
             row = await cursor.fetchone()
             if row:
+                details = json.loads(row[11]) if row[11] else None
                 return MonitorRunResult(
                     run_id=row[0],
                     schedule_id=row[1],
@@ -644,10 +658,15 @@ class PipelineRepository:
                     baseline_survival_rate=row[5],
                     current_survival_rate=row[6],
                     survival_delta=row[7],
+                    baseline_goal_completion_rate=details.get("baseline_goal_completion_rate") if details else None,
+                    current_goal_completion_rate=details.get("current_goal_completion_rate") if details else None,
+                    goal_completion_delta=details.get("goal_completion_delta") if details else None,
                     drift_detected=bool(row[8]),
                     drift_severity=row[9],
+                    drift_reasons=details.get("drift_reasons", []) if details else [],
+                    formula_disclosed=details.get("formula_disclosed") if details else None,
                     action_taken=row[10],
-                    action_details=json.loads(row[11]) if row[11] else None,
+                    action_details=details,
                     report_id=row[12],
                     created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
                 )
@@ -664,6 +683,7 @@ class PipelineRepository:
             rows = await cursor.fetchall()
             results = []
             for row in rows:
+                details = json.loads(row[11]) if row[11] else None
                 results.append(
                     MonitorRunResult(
                         run_id=row[0],
@@ -674,10 +694,15 @@ class PipelineRepository:
                         baseline_survival_rate=row[5],
                         current_survival_rate=row[6],
                         survival_delta=row[7],
+                        baseline_goal_completion_rate=details.get("baseline_goal_completion_rate") if details else None,
+                        current_goal_completion_rate=details.get("current_goal_completion_rate") if details else None,
+                        goal_completion_delta=details.get("goal_completion_delta") if details else None,
                         drift_detected=bool(row[8]),
                         drift_severity=row[9],
+                        drift_reasons=details.get("drift_reasons", []) if details else [],
+                        formula_disclosed=details.get("formula_disclosed") if details else None,
                         action_taken=row[10],
-                        action_details=json.loads(row[11]) if row[11] else None,
+                        action_details=details,
                         report_id=row[12],
                         created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
                     )
