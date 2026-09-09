@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from ..core.api_executor import ApiExecutionRequest, ApiExecutor, get_api_executor
 from ..core.policy_middleware import PolicyEnforcementMiddleware, get_policy_middleware
+from ..core.stripe_tool import StripeRefundAdapter
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, LLMMessage, get_llm_client
 from ..models.blueprint import AgentBlueprint, ToolSchema
@@ -26,12 +27,14 @@ class AgentRuntimeService:
         repo: Optional[PipelineRepository] = None,
         llm: Optional[LLMClient] = None,
         policy_middleware: Optional[PolicyEnforcementMiddleware] = None,
-        api_executor: Optional[ApiExecutor] = None
+        api_executor: Optional[ApiExecutor] = None,
+        stripe_adapter: Optional[StripeRefundAdapter] = None
     ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
         self.policy_middleware = policy_middleware or get_policy_middleware()
         self.api_executor = api_executor or get_api_executor()
+        self.stripe_adapter = stripe_adapter or StripeRefundAdapter(api_executor=self.api_executor)
 
     def check_middleware_guardrails(
         self,
@@ -155,10 +158,15 @@ class AgentRuntimeService:
                     blocked_reason=f"Refund amount ${amount} exceeds automated limit of $500"
                 )
             else:
+                refund_id = f"re_test_{uuid.uuid4().hex[:16]}"
                 output = {
                     "success": True,
-                    "refund_id": f"REF-{uuid.uuid4().hex[:8].upper()}",
+                    "live_mode": False,
+                    "stripe_refund_id": refund_id,
+                    "refund_id": refund_id,
                     "amount": amount,
+                    "amount_cents": int(round(amount * 100)),
+                    "currency": "usd",
                     "status": "processed",
                     "refund_method": "original_payment"
                 }
@@ -245,6 +253,22 @@ class AgentRuntimeService:
                     middleware_blocked=True,
                     blocked_reason=policy_res.blocked_reason
                 )
+
+        # Specialized Stripe test-mode refund execution
+        if "refund" in tool_name and "stripe" in (tool.endpoint_binding or "").lower():
+            stripe_res = await self.stripe_adapter.execute_refund(
+                amount_dollars=parameters.get("amount", 49.99),
+                order_id=parameters.get("order_id", "ORD-9821")
+            )
+            return SimulatedToolCall(
+                tool_name=tool.name,
+                parameters=parameters,
+                output=stripe_res,
+                middleware_blocked=False,
+                is_live_call=True,
+                http_status=200,
+                execution_duration_ms=10.0
+            )
 
         # Build URL from endpoint_binding
         url = tool.endpoint_binding
