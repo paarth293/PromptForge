@@ -12,16 +12,18 @@ import {
   Terminal,
   Cpu,
   RefreshCw,
-  Flame
+  Flame,
+  Award
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
 import RedTeamFeed from '../components/RedTeamFeed';
 import HardeningLogView, { HardeningLogData } from '../components/HardeningLogView';
+import VerificationScorecardView, { VerificationScorecardData } from '../components/VerificationScorecardView';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden';
+type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify';
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
@@ -33,6 +35,7 @@ export default function HomePage() {
   const [spec, setSpec] = useState<AgentSpecData | null>(null);
   const [blueprint, setBlueprint] = useState<BlueprintInfo | null>(null);
   const [hardeningLog, setHardeningLog] = useState<HardeningLogData | null>(null);
+  const [scorecard, setScorecard] = useState<VerificationScorecardData | null>(null);
   const [assemblySteps, setAssemblySteps] = useState<
     { name: string; chain: string; status: 'pending' | 'running' | 'done' }[]
   >([
@@ -184,11 +187,39 @@ export default function HomePage() {
     }
   };
 
+  const handleRunVerification = async () => {
+    if (!blueprint) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/verify/run/${blueprint.blueprint_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': 'tenant-demo'
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Verification failed');
+      }
+      const data: VerificationScorecardData = await res.json();
+      setScorecard(data);
+      setStage('verify');
+    } catch (err: any) {
+      setError(err.message || 'Verification failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleReset = () => {
     setStage('input');
     setPromptInput('');
     setSpec(null);
     setBlueprint(null);
+    setHardeningLog(null);
+    setScorecard(null);
     setError(null);
   };
 
@@ -231,6 +262,14 @@ export default function HomePage() {
           <span>→</span>
           <span className={`px-2.5 py-1 rounded-lg ${stage === 'redteam' ? 'bg-red-600 text-white' : 'bg-[#151C2C]'}`}>
             5. Red Team
+          </span>
+          <span>→</span>
+          <span className={`px-2.5 py-1 rounded-lg ${stage === 'harden' ? 'bg-amber-600 text-white' : 'bg-[#151C2C]'}`}>
+            6. Harden
+          </span>
+          <span>→</span>
+          <span className={`px-2.5 py-1 rounded-lg ${stage === 'verify' ? 'bg-emerald-600 text-white' : 'bg-[#151C2C]'}`}>
+            7. Verify
           </span>
         </div>
       </header>
@@ -390,6 +429,7 @@ export default function HomePage() {
               blueprint={blueprint}
               onReset={handleReset}
               onLaunchRedTeam={() => setStage('redteam')}
+              onViewScorecard={handleRunVerification}
               apiBaseUrl={API_BASE_URL}
             />
           </div>
@@ -438,6 +478,21 @@ export default function HomePage() {
               agentName={blueprint.agent_name}
               onBackToRedTeam={() => setStage('redteam')}
               onChatWithHardenedAgent={() => setStage('chat')}
+              onProceedToVerification={handleRunVerification}
+            />
+          </div>
+        )}
+
+        {/* STAGE 7: Verification Scorecard View */}
+        {stage === 'verify' && blueprint && scorecard && (
+          <div className="w-full animate-in fade-in duration-300">
+            <VerificationScorecardView
+              scorecard={scorecard}
+              agentName={blueprint.agent_name}
+              onBackToChat={() => setStage('chat')}
+              onBackToHardening={hardeningLog ? () => setStage('harden') : undefined}
+              onRerunVerify={handleRunVerification}
+              loading={loading}
             />
           </div>
         )}

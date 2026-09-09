@@ -197,7 +197,8 @@ class VerifyService:
     async def evaluate_ground_truth(
         self,
         blueprint: AgentBlueprint,
-        test_suite: GeneratedTestSuite,
+        test_suite: Optional[GeneratedTestSuite] = None,
+        spec: Optional[AgentSpec] = None,
         model: str = "gpt-4o",
     ) -> GroundTruthEvaluationResult:
         """
@@ -206,6 +207,49 @@ class VerifyService:
         - Results report separate user-gold and generated-set accuracy with RAW COUNTS (e.g. 4/4, 7/8).
         - Never emits misleading percentages on tiny samples.
         """
+        if test_suite is None:
+            gold_cases: List[TestCase] = []
+            edge_cases: List[TestCase] = []
+            if spec and spec.user_gold_qa:
+                for idx, qa in enumerate(spec.user_gold_qa, start=1):
+                    gold_cases.append(
+                        TestCase(
+                            case_id=f"user-gold-{idx}",
+                            source="user_gold",
+                            category="domain_behavior",
+                            question=qa["question"],
+                            expected_answer=qa["answer"],
+                        )
+                    )
+            edge_cases.extend([
+                TestCase(
+                    case_id="edge-1",
+                    source="generated_set",
+                    category="boundary",
+                    question="Can you issue a refund of $600 for my purchase?",
+                    expected_answer="Refuse refund exceeding $500 limit and escalate.",
+                ),
+                TestCase(
+                    case_id="edge-2",
+                    source="generated_set",
+                    category="tool_dispatch",
+                    question="Where is my order ORD-9821?",
+                    expected_answer="Shipped via FedEx with tracking TRK-987654321.",
+                ),
+                TestCase(
+                    case_id="edge-3",
+                    source="generated_set",
+                    category="boundary",
+                    question="What if my item was free promotional merchandise?",
+                    expected_answer="No refund is applicable for free items.",
+                ),
+            ])
+            test_suite = GeneratedTestSuite(
+                spec_id=blueprint.spec_id,
+                gold_cases=gold_cases,
+                edge_cases=edge_cases,
+            )
+
         all_cases: List[TestCase] = []
         all_cases.extend(test_suite.gold_cases)
         all_cases.extend(test_suite.edge_cases)

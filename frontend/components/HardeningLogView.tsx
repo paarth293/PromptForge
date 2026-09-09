@@ -14,7 +14,8 @@ import {
   FileCode,
   Layers,
   Sparkles,
-  GitCommit
+  GitCommit,
+  Award
 } from 'lucide-react';
 
 export interface PatchEntryData {
@@ -56,13 +57,15 @@ interface HardeningLogViewProps {
   agentName: string;
   onBackToRedTeam?: () => void;
   onChatWithHardenedAgent?: () => void;
+  onProceedToVerification?: () => void;
 }
 
 export default function HardeningLogView({
   hardeningLog,
   agentName,
   onBackToRedTeam,
-  onChatWithHardenedAgent
+  onChatWithHardenedAgent,
+  onProceedToVerification
 }: HardeningLogViewProps) {
   const [expandedDiffs, setExpandedDiffs] = useState<Record<string, boolean>>({});
   const [copiedHash, setCopiedHash] = useState(false);
@@ -137,10 +140,19 @@ export default function HardeningLogView({
           {onChatWithHardenedAgent && (
             <button
               onClick={onChatWithHardenedAgent}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/20 transition"
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
             >
-              <span>Test Hardened Agent</span>
+              <span>Test Chat</span>
               <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+          {onProceedToVerification && (
+            <button
+              onClick={onProceedToVerification}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 transition"
+            >
+              <Award className="w-3.5 h-3.5" />
+              <span>Verify Scorecard</span>
             </button>
           )}
         </div>
