@@ -9,6 +9,7 @@ from .blueprint import (
     ToolSchema,
 )
 from .certificate import BirthCertificate, CertificateVerificationResult
+from .deployment import DeploymentPackage
 from .dossier import AgentDossier
 from .harden import HardeningLog, PatchEntry
 from .playbook import AdversarialPlaybookEntry
@@ -80,6 +81,7 @@ __all__ = [
     "AuditEvent",
     "BirthCertificate",
     "CertificateVerificationResult",
+    "DeploymentPackage",
     "AdversarialPlaybookEntry",
     "AgentDossier",
     "GeneratedTestSuite",

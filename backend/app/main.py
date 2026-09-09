@@ -24,12 +24,14 @@ from .models import (
     CertificateVerificationResult,
     ChatRequest,
     ChatResponse,
+    DeploymentPackage,
     HardeningLog,
     RedTeamReport,
     VerificationScorecard,
 )
 from .models.harden import HardeningLoopResult
 from .services.certificate_service import CertificateService
+from .services.deployment_service import DeploymentService
 from .services.forge_service import ForgeService
 from .services.harden_service import HardenService
 from .services.redteam_service import RedTeamService
@@ -514,7 +516,87 @@ async def verify_certificate_post_endpoint(
     return result
 
 
+# =========================================================================
+# Step 66: Deployed Agent Endpoints & Packaging
+# =========================================================================
+
+@app.post("/api/deploy/agents/{blueprint_id}", response_model=DeploymentPackage)
+async def deploy_agent_endpoint(
+    blueprint_id: str,
+    request: Request,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    # Base URLs from request headers if present
+    host = request.headers.get("host", "localhost:8000")
+    scheme = request.url.scheme
+    base_api_url = f"{scheme}://{host}"
+    # Next.js frontend default port is 3000
+    base_frontend_url = f"{scheme}://{request.url.hostname}:3000"
+
+    deployment_service = DeploymentService(repo=repo)
+    pkg = await deployment_service.deploy_agent(
+        blueprint_id=blueprint_id,
+        tenant_id=tenant_id,
+        base_frontend_url=base_frontend_url,
+        base_api_url=base_api_url,
+    )
+    return pkg
+
+
+@app.get("/api/deploy/agents/{agent_id}", response_model=DeploymentPackage)
+async def get_deployed_agent_endpoint(
+    agent_id: str,
+):
+    """Public endpoint to fetch deployment configuration and metadata for a deployed agent."""
+    repo = PipelineRepository()
+    deployment_service = DeploymentService(repo=repo)
+    pkg = await deployment_service.get_deployment(agent_id)
+    if not pkg:
+        raise HTTPException(status_code=404, detail=f"No deployment found for agent '{agent_id}'")
+    return pkg
+
+
+@app.get("/api/deploy/agents", response_model=List[DeploymentPackage])
+async def list_deployed_agents_endpoint(
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    deployment_service = DeploymentService(repo=repo)
+    return await deployment_service.list_deployments(tenant_id=tenant_id)
+
+
+@app.post("/api/deploy/agents/{agent_id}/chat", response_model=ChatResponse)
+async def deployed_agent_chat_endpoint(
+    agent_id: str,
+    req: ChatRequest,
+):
+    """
+    Step 66: Stable runtime chat endpoint for the deployed agent behind its shareable URL.
+    Does not require admin forge headers.
+    """
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(agent_id)
+    if not bp:
+        # Check if agent_id is a deployment_id
+        pkg = await repo.get_deployment(agent_id)
+        if pkg:
+            bp = await repo.get_blueprint(pkg.blueprint_id)
+
+    if not bp:
+        raise HTTPException(status_code=404, detail=f"Deployed agent '{agent_id}' not found.")
+
+    service = AgentRuntimeService(repo=repo)
+    return await service.chat(blueprint_id=bp.blueprint_id, request=req)
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.app.main:app", host=settings.host, port=settings.port, reload=True)
+
 

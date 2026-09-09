@@ -9,6 +9,7 @@ from ..models import (
     AgentSpec,
     AuditEvent,
     BirthCertificate,
+    DeploymentPackage,
     HardeningLog,
     PolicyObject,
     ProvenanceRegistryEntry,
@@ -428,4 +429,60 @@ class PipelineRepository:
                 cursor = await conn.execute("SELECT data_json FROM agent_registry ORDER BY created_at DESC;")
             rows = await cursor.fetchall()
             return [ProvenanceRegistryEntry.model_validate_json(row[0]) for row in rows]
+
+    # DeploymentPackage
+    async def save_deployment(self, deployment: DeploymentPackage):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA foreign_keys = ON;")
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO deployments (deployment_id, agent_id, blueprint_id, tenant_id, agent_name, version, status, shareable_url, chat_api_url, certificate_id, data_json, deployed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    deployment.deployment_id,
+                    deployment.agent_id,
+                    deployment.blueprint_id,
+                    deployment.tenant_id,
+                    deployment.agent_name,
+                    deployment.version,
+                    deployment.status,
+                    deployment.shareable_url,
+                    deployment.chat_api_url,
+                    deployment.certificate_id,
+                    deployment.model_dump_json(),
+                    deployment.deployed_at.isoformat(),
+                )
+            )
+            await conn.commit()
+
+    async def get_deployment(self, deployment_id: str) -> Optional[DeploymentPackage]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM deployments WHERE deployment_id = ?;", (deployment_id,))
+            row = await cursor.fetchone()
+            if row:
+                return DeploymentPackage.model_validate_json(row[0])
+            return None
+
+    async def get_deployment_by_agent(self, agent_id: str) -> Optional[DeploymentPackage]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM deployments WHERE agent_id = ? ORDER BY deployed_at DESC LIMIT 1;", (agent_id,))
+            row = await cursor.fetchone()
+            if row:
+                return DeploymentPackage.model_validate_json(row[0])
+            return None
+
+    async def list_deployments(self, tenant_id: Optional[str] = None) -> List[DeploymentPackage]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            if tenant_id:
+                cursor = await conn.execute("SELECT data_json FROM deployments WHERE tenant_id = ? ORDER BY deployed_at DESC;", (tenant_id,))
+            else:
+                cursor = await conn.execute("SELECT data_json FROM deployments ORDER BY deployed_at DESC;")
+            rows = await cursor.fetchall()
+            return [DeploymentPackage.model_validate_json(row[0]) for row in rows]
+
 
