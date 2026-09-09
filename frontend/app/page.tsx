@@ -13,7 +13,8 @@ import {
   Cpu,
   RefreshCw,
   Flame,
-  Award
+  Award,
+  Swords,
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
@@ -22,10 +23,11 @@ import HardeningLogView, { HardeningLogData } from '../components/HardeningLogVi
 import VerificationScorecardView, { VerificationScorecardData } from '../components/VerificationScorecardView';
 import AuditModeEntry from '../components/AuditModeEntry';
 import DeepForgeLineageViewer from '../components/DeepForgeLineageViewer';
+import ArenaView from '../components/ArenaView';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify' | 'evolve';
+type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify' | 'evolve' | 'arena';
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
@@ -294,6 +296,13 @@ export default function HomePage() {
               className={`px-2.5 py-1 rounded-lg transition ${stage === 'evolve' ? 'bg-purple-600 text-white' : 'bg-[#151C2C] hover:bg-slate-800'}`}
             >
               8. Deep Forge
+            </button>
+            <span>→</span>
+            <button
+              onClick={() => setStage('arena')}
+              className={`px-2.5 py-1 rounded-lg transition ${stage === 'arena' ? 'bg-red-600 text-white' : 'bg-[#151C2C] hover:bg-slate-800'}`}
+            >
+              9. ARENA
             </button>
           </div>
         ) : (
@@ -609,6 +618,17 @@ export default function HomePage() {
                   setStage('chat');
                 }
               }}
+            />
+          </div>
+        )}
+
+        {/* STAGE 9: ARENA Multi-Agent Sparring & Seam Security */}
+        {stage === 'arena' && (
+          <div className="w-full animate-in fade-in duration-300">
+            <ArenaView
+              blueprintId={blueprint?.blueprint_id || 'demo-blueprint-1'}
+              agentName={blueprint?.agent_name || spec?.agent_name || 'Customer Support Assistant'}
+              onBackToVerification={() => setStage('verify')}
             />
           </div>
         )}
