@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from typing import List
+from typing import Any, Dict, List, Optional
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,9 @@ from .db.session import init_db
 from .models import (
     AgentBlueprint,
     AgentSpec,
+    ArenaPairingRequest,
+    ArenaPairingTranscript,
+    ArenaRunResult,
     BirthCertificate,
     CertificateVerificationResult,
     ChatRequest,
@@ -29,6 +32,8 @@ from .models import (
     EvolveLineageLog,
     HardeningLog,
     RedTeamReport,
+    SeamAuditLogEntry,
+    SeamHandoffResult,
     VerificationScorecard,
 )
 from .models.audit_import import (
@@ -50,6 +55,7 @@ from .models.monitor import (
     ReviewAlertRequest,
     TriggerMonitorRunRequest,
 )
+from .services.arena_service import ArenaService
 from .services.audit_import_service import AuditImportService
 from .services.audit_pipeline_service import AuditPipelineService
 from .services.certificate_service import CertificateService
@@ -890,9 +896,113 @@ async def list_evolve_logs_endpoint(
     return await repo.list_evolve_lineage_logs(limit=limit)
 
 
+# ==============================================================================
+# Phase 11: ARENA Endpoints (Hostile Personas, Seam Attacks, Playbook Wiring)
+# ==============================================================================
+
+@app.post("/api/arena/run", response_model=ArenaRunResult)
+async def run_arena_endpoint(
+    req: ArenaPairingRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(req.target_blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail=f"Target blueprint {req.target_blueprint_id} not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    arena_service = ArenaService(repo=repo)
+    run_result = await arena_service.run_arena_battery(
+        target_blueprint=bp,
+        hostile_personas=req.hostile_personas,
+        include_seam_attacks=req.include_seam_attacks,
+        max_turns_per_pairing=req.max_turns_per_pairing,
+    )
+    return run_result
+
+
+@app.get("/api/arena/runs", response_model=List[ArenaRunResult])
+async def list_arena_runs_endpoint(
+    limit: int = 20,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    arena_service = ArenaService(repo=repo)
+    return await arena_service.list_arena_runs(limit=limit)
+
+
+@app.get("/api/arena/run/{arena_run_id}", response_model=ArenaRunResult)
+async def get_arena_run_endpoint(
+    arena_run_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    arena_service = ArenaService(repo=repo)
+    run = await arena_service.get_arena_run(arena_run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=f"Arena run {arena_run_id} not found")
+    return run
+
+
+@app.get("/api/arena/pairings/{blueprint_id}", response_model=List[ArenaPairingTranscript])
+async def list_arena_pairings_endpoint(
+    blueprint_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    return await repo.list_arena_pairings_by_blueprint(blueprint_id)
+
+
+@app.get("/api/arena/seam-logs", response_model=List[SeamAuditLogEntry])
+async def list_seam_logs_endpoint(
+    target_agent_id: Optional[str] = None,
+    limit: int = 50,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    arena_service = ArenaService(repo=repo)
+    return await arena_service.get_seam_audit_logs(target_agent_id=target_agent_id, limit=limit)
+
+
+class InteractiveSeamTestRequest(BaseModel):
+    target_blueprint_id: str
+    source_agent_role: str = "upstream_triage_peer"
+    smuggled_instruction: str
+    boundary_mode: str = "enforce_block"
+    clean_data: Optional[Dict[str, Any]] = None
+
+
+@app.post("/api/arena/seam-test", response_model=SeamHandoffResult)
+async def test_seam_handoff_endpoint(
+    req: InteractiveSeamTestRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(req.target_blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail=f"Target blueprint {req.target_blueprint_id} not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    arena_service = ArenaService(repo=repo)
+    attack = arena_service.construct_seam_attack(
+        source_agent_role=req.source_agent_role,
+        target_agent_id=bp.blueprint_id,
+        clean_data=req.clean_data or {"order_id": "ORD-9821", "customer_name": "Jordan Rivera", "status": "escalated"},
+        smuggled_instruction=req.smuggled_instruction,
+    )
+    result = await arena_service.execute_seam_handoff(
+        source_agent=bp,
+        target_agent=bp,
+        seam_attack=attack,
+        boundary_mode=req.boundary_mode,  # type: ignore
+    )
+    return result
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.app.main:app", host=settings.host, port=settings.port, reload=True)
+
 
 
 
