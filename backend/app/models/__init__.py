@@ -22,7 +22,17 @@ from .blueprint import (
 )
 from .certificate import BirthCertificate, CertificateVerificationResult
 from .deployment import DeploymentPackage
-from .dossier import AgentDossier
+from .dossier import (
+    AgentDossier,
+    DossierArenaRecord,
+    DossierCapabilityRecord,
+    DossierLineageRecord,
+    DossierMonitorRecord,
+    DossierPatchRecord,
+    DossierProvenanceRecord,
+    DossierSecurityRecord,
+    DossierVerifiableClaim,
+)
 from .evolve import (
     PROMPT_STRATEGIES,
     CrossoverRecombinationOutput,
@@ -114,6 +124,14 @@ __all__ = [
     "DeploymentPackage",
     "AdversarialPlaybookEntry",
     "AgentDossier",
+    "DossierCapabilityRecord",
+    "DossierPatchRecord",
+    "DossierArenaRecord",
+    "DossierMonitorRecord",
+    "DossierSecurityRecord",
+    "DossierLineageRecord",
+    "DossierProvenanceRecord",
+    "DossierVerifiableClaim",
     "GeneratedTestSuite",
     "TestCase",
     "ChatMessage",
