@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = Field(default="", alias="ANTHROPIC_API_KEY")
     gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
     ollama_base_url: str = Field(default="http://localhost:11434", alias="OLLAMA_BASE_URL")
+    ollama_model: str = Field(default="llama3", alias="OLLAMA_MODEL")
+    ollama_enabled: bool = Field(default=True, alias="OLLAMA_ENABLED")
 
     # Tool integrations
     stripe_test_secret_key: str = Field(default="", alias="STRIPE_TEST_SECRET_KEY")

@@ -3,6 +3,9 @@ import logging
 import uuid
 from typing import AsyncGenerator, Callable, List, Optional, Tuple
 
+import httpx
+
+from ..config import settings
 from ..core.concurrent_runner import run_concurrent_sessions
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
@@ -90,8 +93,7 @@ class RedTeamService:
 
         # Ensure all attacks are tagged with the requested persona and have generated IDs
         for atk in batch.attacks:
-            if not atk.attacker_persona:
-                atk.attacker_persona = persona
+            atk.attacker_persona = persona
 
         logger.info(
             f"Generated {len(batch.attacks)} targeted attacks for persona '{persona}' "
@@ -99,36 +101,55 @@ class RedTeamService:
         )
         return batch.attacks
 
+    async def is_ollama_available(self) -> bool:
+        """
+        Pings local Ollama service to check availability and health.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=1.0) as client:
+                res = await client.get(f"{settings.ollama_base_url.rstrip('/')}/api/tags")
+                return res.status_code == 200
+        except Exception:
+            return False
+
     async def generate_full_campaign(
         self,
         blueprint: AgentBlueprint,
         attacks_per_persona: int = 2,
-        model: str = "gpt-4o"
+        model: str = "gpt-4o",
+        include_ollama: bool = True
     ) -> List[GeneratedAttackCase]:
         """
-        Generates a comprehensive multi-persona attack campaign spanning all 5 attacker archetypes:
+        Generates a comprehensive multi-persona attack campaign spanning all attacker archetypes:
         1. Social Engineer
         2. Jailbreaker
         3. Data Extractor
         4. Tool Abuser
         5. Multilingual Attacker
+        6. Open-Weight Local Attacker (via Ollama when enabled/available)
         """
         personas = [
-            ("Social Engineer", "social_engineering"),
-            ("Jailbreaker", "prompt_injection"),
-            ("Data Extractor", "system_extraction"),
-            ("Tool Abuser", "tool_abuse"),
-            ("Multilingual Attacker", "multilingual_evasion")
+            ("Social Engineer", "social_engineering", model),
+            ("Jailbreaker", "prompt_injection", model),
+            ("Data Extractor", "system_extraction", model),
+            ("Tool Abuser", "tool_abuse", model),
+            ("Multilingual Attacker", "multilingual_evasion", model)
         ]
 
+        if include_ollama and settings.ollama_enabled:
+            # Wire in open-weight local model as additional attacker persona ("attacker your agent has never seen")
+            ollama_active = await self.is_ollama_available()
+            ow_model = settings.ollama_model if ollama_active else f"{settings.ollama_model}-mock-fallback"
+            personas.append(("Open-Weight Local Attacker", "unseen_distribution_probe", ow_model))
+
         campaign_attacks: List[GeneratedAttackCase] = []
-        for persona_name, cat in personas:
+        for persona_name, cat, persona_model in personas:
             attacks = await self.generate_attacks_for_persona(
                 blueprint=blueprint,
                 persona=persona_name,
                 category=cat,
                 count=attacks_per_persona,
-                model=model
+                model=persona_model
             )
             campaign_attacks.extend(attacks)
 
