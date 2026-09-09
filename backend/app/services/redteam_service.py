@@ -1,14 +1,23 @@
 import json
 import logging
-from typing import List, Optional
+import uuid
+from typing import AsyncGenerator, Callable, List, Optional, Tuple
 
+from ..core.concurrent_runner import run_concurrent_sessions
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..core.quality_gate import AttackQualityGate, QualityGateResult
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
 from ..models.blueprint import AgentBlueprint
-from ..models.redteam import GeneratedAttackCase, GeneratedAttacksBatch
+from ..models.redteam import (
+    AttackTurnRecord,
+    ExecutedAttackTranscript,
+    GeneratedAttackCase,
+    GeneratedAttacksBatch,
+)
+from ..models.runtime import ChatMessage, ChatRequest
+from .runtime_service import AgentRuntimeService
 from .seed_corpus_service import SeedCorpusService, get_seed_corpus_service
 
 logger = logging.getLogger("promptforge.services.redteam")
@@ -155,4 +164,130 @@ class RedTeamService:
             model=model
         )
         return self.apply_quality_gate(blueprint, raw_attacks)
+
+    async def execute_attack_session(
+        self,
+        blueprint: AgentBlueprint,
+        attack: GeneratedAttackCase,
+        runtime_service: Optional[AgentRuntimeService] = None
+    ) -> ExecutedAttackTranscript:
+        """
+        Executes a stateful multi-turn attack session against the target agent runtime.
+        Carries conversational state, simulated tool calls, and captures failure modes.
+        """
+        runtime = runtime_service or AgentRuntimeService(repo=self.repo, llm=self.llm)
+        session_id = f"redteam-sess-{uuid.uuid4().hex[:8]}"
+
+        history: List[ChatMessage] = []
+        turn_records: List[AttackTurnRecord] = []
+        was_blocked = False
+        triggered_guardrail: Optional[str] = None
+        final_reply = ""
+
+        # Classify stateful failure mode
+        vec_lower = attack.attack_vector.lower()
+        if "poison" in vec_lower or "tool_result" in vec_lower:
+            failure_mode = "tool_result_poisoning"
+        elif "cumulative" in vec_lower or "trust" in vec_lower:
+            failure_mode = "cumulative_injection"
+        elif "erosion" in vec_lower or "gradual" in vec_lower:
+            failure_mode = "gradual_instruction_erosion"
+        else:
+            failure_mode = "direct_probe"
+
+        for i, turn in enumerate(attack.turns, 1):
+            chat_req = ChatRequest(
+                message=turn.prompt,
+                history=history,
+                session_id=session_id
+            )
+            chat_res = await runtime.chat(blueprint.blueprint_id, chat_req)
+
+            final_reply = chat_res.response
+            if chat_res.blocked:
+                was_blocked = True
+                triggered_guardrail = chat_res.guardrail_triggered
+
+            turn_records.append(AttackTurnRecord(
+                turn_index=i,
+                user_prompt=turn.prompt,
+                agent_response=chat_res.response,
+                tool_calls=[tc.model_dump() for tc in chat_res.tool_calls],
+                blocked=chat_res.blocked,
+                guardrail_triggered=chat_res.guardrail_triggered
+            ))
+
+            # Maintain conversational state across turns
+            history.append(ChatMessage(role="user", content=turn.prompt))
+            history.append(ChatMessage(role="assistant", content=chat_res.response))
+
+            # If blocked by deterministic middleware, further turns are stopped
+            if chat_res.blocked:
+                break
+
+        return ExecutedAttackTranscript(
+            session_id=session_id,
+            attack_id=attack.attack_id,
+            blueprint_id=blueprint.blueprint_id,
+            attacker_persona=attack.attacker_persona,
+            category=attack.category,
+            attack_vector=attack.attack_vector,
+            target_surface=attack.target_surface,
+            target_element=attack.target_element,
+            difficulty=attack.difficulty,
+            is_multi_turn=len(attack.turns) > 1,
+            failure_mode=failure_mode,
+            turns=turn_records,
+            final_response=final_reply,
+            was_blocked_any_turn=was_blocked,
+            guardrail_triggered=triggered_guardrail
+        )
+
+    async def stream_attack_execution(
+        self,
+        blueprint: AgentBlueprint,
+        attacks: List[GeneratedAttackCase],
+        concurrency: int = 8,
+        runtime_service: Optional[AgentRuntimeService] = None,
+        on_progress: Optional[Callable[[int, ExecutedAttackTranscript], None]] = None
+    ) -> AsyncGenerator[Tuple[int, ExecutedAttackTranscript], None]:
+        """
+        Executes attacks concurrently via the concurrent runner, streaming results as they finish.
+        """
+        runtime = runtime_service or AgentRuntimeService(repo=self.repo, llm=self.llm)
+
+        def make_task(atk: GeneratedAttackCase):
+            async def task_fn():
+                return await self.execute_attack_session(blueprint, atk, runtime_service=runtime)
+            return task_fn
+
+        task_factories = [make_task(atk) for atk in attacks]
+
+        async for item in run_concurrent_sessions(
+            tasks=task_factories,
+            concurrency=concurrency,
+            on_result=on_progress
+        ):
+            yield item
+
+    async def execute_attack_batch_concurrently(
+        self,
+        blueprint: AgentBlueprint,
+        attacks: List[GeneratedAttackCase],
+        concurrency: int = 8,
+        runtime_service: Optional[AgentRuntimeService] = None
+    ) -> List[ExecutedAttackTranscript]:
+        """
+        Runs an entire attack batch concurrently and returns all executed transcripts.
+        """
+        results: List[ExecutedAttackTranscript] = []
+        async for _, transcript in self.stream_attack_execution(
+            blueprint=blueprint,
+            attacks=attacks,
+            concurrency=concurrency,
+            runtime_service=runtime_service
+        ):
+            results.append(transcript)
+        return results
+
 

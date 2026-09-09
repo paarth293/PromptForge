@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -35,6 +35,32 @@ class GeneratedAttackCase(BaseModel):
 
 class GeneratedAttacksBatch(BaseModel):
     attacks: List[GeneratedAttackCase] = Field(default_factory=list)
+
+class AttackTurnRecord(BaseModel):
+    turn_index: int
+    user_prompt: str
+    agent_response: str
+    tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
+    blocked: bool = False
+    guardrail_triggered: Optional[str] = None
+
+class ExecutedAttackTranscript(BaseModel):
+    session_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    attack_id: str
+    blueprint_id: str
+    attacker_persona: str
+    category: str
+    attack_vector: str
+    target_surface: str = "boundaries"
+    target_element: str = ""
+    difficulty: str = "moderate"
+    is_multi_turn: bool = False
+    failure_mode: str = "direct_probe"
+    turns: List[AttackTurnRecord] = Field(default_factory=list)
+    final_response: str = ""
+    was_blocked_any_turn: bool = False
+    guardrail_triggered: Optional[str] = None
+
 
 
 class AttackVerdict(BaseModel):

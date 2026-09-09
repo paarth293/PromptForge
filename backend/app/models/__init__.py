@@ -8,7 +8,9 @@ from .playbook import AdversarialPlaybookEntry
 from .redteam import (
     AttackerPersonaOutput,
     AttackPromptTurn,
+    AttackTurnRecord,
     AttackVerdict,
+    ExecutedAttackTranscript,
     GeneratedAttackCase,
     GeneratedAttacksBatch,
     GeneratedAttackTurn,
@@ -32,6 +34,8 @@ __all__ = [
     "AttackVerdict",
     "AttackerPersonaOutput",
     "AttackPromptTurn",
+    "AttackTurnRecord",
+    "ExecutedAttackTranscript",
     "GeneratedAttackCase",
     "GeneratedAttackTurn",
     "GeneratedAttacksBatch",
