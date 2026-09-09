@@ -6,6 +6,7 @@ from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
+from ..models.chain_outputs import SystemPromptOutput
 from ..models.spec import AgentSpec
 from ..models.test_set import GeneratedTestSuite, TestCase
 
@@ -102,3 +103,27 @@ class ForgeService:
             f"{suite.user_supplied_count} user cases, {suite.generated_count} generated cases."
         )
         return suite
+
+    async def generate_system_prompt(
+        self,
+        spec: AgentSpec,
+        model: str = "gpt-4o"
+    ) -> SystemPromptOutput:
+        """
+        Executes Chain 2: Synthesizes a 400-800 word CRISPE system prompt based on confirmed spec.
+        """
+        spec_json = spec.model_dump_json(indent=2)
+        prompt = self.registry.render(
+            "chain_2_system_prompt_generation",
+            spec_json=spec_json
+        )
+        res = await execute_chain_with_retry(
+            client=self.llm,
+            prompt=prompt,
+            schema_class=SystemPromptOutput,
+            model=model
+        )
+        words = len(res.system_prompt.split())
+        res.word_count = words
+        logger.info(f"Generated system prompt for spec {spec.spec_id} ({words} words).")
+        return res
