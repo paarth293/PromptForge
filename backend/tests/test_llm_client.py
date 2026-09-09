@@ -1,5 +1,7 @@
 import pytest
-from backend.app.llm.client import LLMClient, LLMMessage
+
+from backend.app.llm.client import LLMClient
+
 
 @pytest.mark.asyncio
 async def test_llm_client_mock_completion():

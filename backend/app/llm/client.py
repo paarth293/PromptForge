@@ -1,9 +1,10 @@
-import os
 import json
 import logging
-from typing import List, Dict, Any, Optional, Union
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union
+
 import httpx
+from pydantic import BaseModel, Field
+
 from ..config import settings
 
 logger = logging.getLogger("promptforge.llm")
@@ -102,7 +103,7 @@ class LLMClient:
 
     async def _call_mock(self, messages: List[LLMMessage], model: str) -> LLMResponse:
         user_content = next((m.content for m in reversed(messages) if m.role == "user"), "")
-        
+
         # Check if registered mock matches
         for k, v in self._mock_responses.items():
             if k in user_content:
@@ -198,7 +199,7 @@ class LLMClient:
             return await self._call_mock(messages, f"{model}-mock-fallback")
 
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.gemini_key}"
-        
+
         contents = []
         for m in messages:
             role = "model" if m.role == "assistant" else ("user" if m.role == "user" else "user")

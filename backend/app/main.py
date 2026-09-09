@@ -1,13 +1,14 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+
 from .config import settings
-from .core.logging import setup_logging
 from .core.errors import (
     PromptForgeException,
     ValidationException,
+    generic_exception_handler,
     promptforge_exception_handler,
-    generic_exception_handler
 )
+from .core.logging import setup_logging
 
 setup_logging()
 
