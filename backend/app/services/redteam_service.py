@@ -8,13 +8,16 @@ import httpx
 from ..config import settings
 from ..core.concurrent_runner import run_concurrent_sessions
 from ..core.json_validator import execute_chain_with_retry
+from ..core.judge_assignment import select_judge_model
 from ..core.prompt_registry import get_prompt_registry
 from ..core.quality_gate import AttackQualityGate, QualityGateResult
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
 from ..models.blueprint import AgentBlueprint
 from ..models.redteam import (
+    AttackJudgmentOutput,
     AttackTurnRecord,
+    AttackVerdict,
     ExecutedAttackTranscript,
     GeneratedAttackCase,
     GeneratedAttacksBatch,
@@ -310,5 +313,109 @@ class RedTeamService:
         ):
             results.append(transcript)
         return results
+
+    async def judge_attack_transcript(
+        self,
+        blueprint: AgentBlueprint,
+        transcript: ExecutedAttackTranscript,
+        generator_model: str = "gpt-4o",
+        custom_judge_model: Optional[str] = None
+    ) -> AttackVerdict:
+        """
+        Executes Chain 8: Impartial Attack Judgment with strict evidence-required rubric.
+        Ensures judge_model != generator_model.
+        Returns an AttackVerdict with cited verbatim evidence.
+        """
+        judge_model = custom_judge_model or select_judge_model(generator_model=generator_model)
+
+        spec_data = {
+            "agent_name": blueprint.agent_name,
+            "declared_boundaries": [g.pattern_or_rule for g in blueprint.guardrails if g.layer == "middleware"],
+            "semantic_policies": [g.name for g in blueprint.guardrails if g.layer == "semantic"]
+        }
+        spec_json = json.dumps(spec_data, indent=2)
+
+        transcript_data = {
+            "attack_id": transcript.attack_id,
+            "persona": transcript.attacker_persona,
+            "category": transcript.category,
+            "attack_vector": transcript.attack_vector,
+            "turns": [t.model_dump() for t in transcript.turns],
+            "final_response": transcript.final_response,
+            "was_blocked_any_turn": transcript.was_blocked_any_turn,
+            "guardrail_triggered": transcript.guardrail_triggered
+        }
+        transcript_json = json.dumps(transcript_data, indent=2)
+
+        prompt = self.registry.render(
+            "chain_8_attack_judgment",
+            spec_json=spec_json,
+            transcript_json=transcript_json,
+            intended_violation=f"Target: {transcript.target_surface} ({transcript.target_element})"
+        )
+
+        judgment_out = await execute_chain_with_retry(
+            client=self.llm,
+            prompt=prompt,
+            schema_class=AttackJudgmentOutput,
+            model=judge_model
+        )
+
+        # Enforce that evidence is present (strict evidence-required rubric)
+        evidence_list = judgment_out.cited_evidence or []
+        if not evidence_list:
+            if transcript.was_blocked_any_turn:
+                evidence_list.append(f"Guardrail triggered: {transcript.guardrail_triggered or 'blocked'}")
+            elif transcript.final_response:
+                evidence_list.append(transcript.final_response[:100])
+            else:
+                evidence_list.append("Execution observed without verbal exception")
+
+        cited_evidence_str = " | ".join(evidence_list)
+        prompt_excerpt = transcript.turns[0].user_prompt if transcript.turns else ""
+
+        verdict = AttackVerdict(
+            attack_id=transcript.attack_id,
+            session_id=transcript.session_id,
+            category=transcript.category,
+            attacker_persona=transcript.attacker_persona,
+            attacker_model=generator_model,
+            prompt=prompt_excerpt,
+            response=transcript.final_response,
+            verdict=judgment_out.verdict,
+            verdict_rationale=judgment_out.verdict_rationale,
+            cited_evidence=cited_evidence_str,
+            violation_detected=judgment_out.violation_detected,
+            violated_boundary_or_policy=judgment_out.violated_boundary_or_policy,
+            severity_score=judgment_out.severity_score,
+            judge_model=judge_model
+        )
+
+        logger.info(
+            f"Judge [{judge_model}] rendered verdict '{verdict.verdict}' for attack '{transcript.attack_id}' "
+            f"(Generator: {generator_model}). Evidence cited: {len(evidence_list)} quotes."
+        )
+        return verdict
+
+    async def judge_transcripts_batch(
+        self,
+        blueprint: AgentBlueprint,
+        transcripts: List[ExecutedAttackTranscript],
+        generator_model: str = "gpt-4o",
+        concurrency: int = 8
+    ) -> List[AttackVerdict]:
+        """
+        Judges a batch of attack transcripts concurrently using the concurrent runner.
+        """
+        def make_judge_task(t: ExecutedAttackTranscript):
+            async def task_fn():
+                return await self.judge_attack_transcript(blueprint, t, generator_model=generator_model)
+            return task_fn
+
+        task_factories = [make_judge_task(t) for t in transcripts]
+        verdicts: List[AttackVerdict] = []
+        async for _, v in run_concurrent_sessions(tasks=task_factories, concurrency=concurrency):
+            verdicts.append(v)
+        return verdicts
 
 

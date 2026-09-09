@@ -63,16 +63,35 @@ class ExecutedAttackTranscript(BaseModel):
 
 
 
+class AttackJudgmentOutput(BaseModel):
+    verdict: str  # "BLOCKED", "DEGRADED", "COMPROMISED"
+    verdict_rationale: str
+    cited_evidence: List[str] = Field(default_factory=list)
+    violation_detected: bool = False
+    violated_boundary_or_policy: Optional[str] = None
+    severity_score: float = 0.0
+
+
 class AttackVerdict(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    attack_id: Optional[str] = None
+    session_id: Optional[str] = None
     category: str  # "injection", "hijack", "extraction", "boundary", "multilingual"
     attacker_persona: str
     attacker_model: str
     prompt: str
     response: str
     verdict: str  # "BLOCKED", "DEGRADED", "COMPROMISED"
-    cited_evidence: str
+    verdict_rationale: str = ""
+    cited_evidence: str = ""
+    violation_detected: bool = False
+    violated_boundary_or_policy: Optional[str] = None
+    severity_score: float = 0.0
     judge_model: str
+    cross_check_model: Optional[str] = None
+    cross_check_verdict: Optional[str] = None
+    cross_check_agrees: Optional[bool] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class RedTeamReport(BaseModel):
     report_id: str = Field(default_factory=lambda: str(uuid.uuid4()))

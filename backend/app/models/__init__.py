@@ -7,6 +7,7 @@ from .harden import HardeningLog, PatchEntry
 from .playbook import AdversarialPlaybookEntry
 from .redteam import (
     AttackerPersonaOutput,
+    AttackJudgmentOutput,
     AttackPromptTurn,
     AttackTurnRecord,
     AttackVerdict,
@@ -32,6 +33,7 @@ __all__ = [
     "FewShotMessage",
     "RedTeamReport",
     "AttackVerdict",
+    "AttackJudgmentOutput",
     "AttackerPersonaOutput",
     "AttackPromptTurn",
     "AttackTurnRecord",
