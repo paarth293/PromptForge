@@ -33,11 +33,14 @@ class AgentRuntimeService:
     def check_middleware_guardrails(
         self,
         blueprint: AgentBlueprint,
-        text: str
+        text: str,
+        has_policy: bool = False
     ) -> Tuple[bool, str, Optional[str]]:
         """
         Evaluates text against deterministic middleware guardrails.
         Returns: (is_blocked, processed_text, triggered_guardrail_name)
+        When a Shield PolicyObject is active (has_policy=True), tool parameter ceilings (e.g. amount <= 500)
+        are enforced by the dedicated PolicyEnforcementMiddleware during tool execution.
         """
         processed_text = text
         for rail in blueprint.guardrails:
@@ -55,26 +58,27 @@ class AgentRuntimeService:
             except re.error:
                 pass
 
-            # Check numeric boundary rule e.g. "amount <= 500"
-            num_rule = re.match(r"amount\s*(<=|<)\s*(\d+(?:\.\d+)?)", rail.pattern_or_rule.strip(), re.IGNORECASE)
-            if num_rule and any(w in text.lower() for w in ["refund", "$", "dollar", "pay", "charge"]):
-                op = num_rule.group(1)
-                limit = float(num_rule.group(2))
-                dollar_match = re.search(
-                    r"\$\s*(\d+(?:\.\d+)?)|(?:refund|charge|amount)\s+(?:of\s+)?(\d+(?:\.\d+)?)",
-                    text,
-                    re.IGNORECASE
-                )
-                if dollar_match:
-                    amount_str = dollar_match.group(1) or dollar_match.group(2)
-                    req_amount = float(amount_str)
-                    if (op == "<=" and req_amount > limit) or (op == "<" and req_amount >= limit):
-                        if rail.action == "block":
-                            logger.warning(
-                                f"Middleware guardrail '{rail.name}' BLOCKED input: "
-                                f"amount ${req_amount} exceeds limit ${limit}"
-                            )
-                            return True, processed_text, rail.name
+            # Check numeric boundary rule e.g. "amount <= 500" if no formal policy object is attached
+            if not has_policy:
+                num_rule = re.match(r"amount\s*(<=|<)\s*(\d+(?:\.\d+)?)", rail.pattern_or_rule.strip(), re.IGNORECASE)
+                if num_rule and any(w in text.lower() for w in ["refund", "$", "dollar", "pay", "charge"]):
+                    op = num_rule.group(1)
+                    limit = float(num_rule.group(2))
+                    dollar_match = re.search(
+                        r"\$\s*(\d+(?:\.\d+)?)|(?:refund|charge|amount)\s+(?:of\s+)?(\d+(?:\.\d+)?)",
+                        text,
+                        re.IGNORECASE
+                    )
+                    if dollar_match:
+                        amount_str = dollar_match.group(1) or dollar_match.group(2)
+                        req_amount = float(amount_str)
+                        if (op == "<=" and req_amount > limit) or (op == "<" and req_amount >= limit):
+                            if rail.action == "block":
+                                logger.warning(
+                                    f"Middleware guardrail '{rail.name}' BLOCKED input: "
+                                    f"amount ${req_amount} exceeds limit ${limit}"
+                                )
+                                return True, processed_text, rail.name
 
         return False, processed_text, None
 
@@ -93,10 +97,15 @@ class AgentRuntimeService:
         output: Dict[str, Any] = {}
 
         if "order" in tool_name or "lookup" in tool_name:
-            match = re.search(r"#?([A-Za-z0-9\-]+)", message)
+            match = re.search(r"(?:order\s*#?|#)([A-Za-z0-9\-]+)", message, re.IGNORECASE)
+            if not match:
+                match = re.search(r"\b(ORD-[A-Za-z0-9\-]+)\b", message, re.IGNORECASE)
+            if not match:
+                match = re.search(r"#?([A-Za-z0-9\-]+)", message)
             order_id = match.group(1) if match else "ORD-9821"
             parameters = {"order_id": order_id}
             output = {
+                "success": True,
                 "order_id": order_id,
                 "status": "Shipped",
                 "carrier": "FedEx",
@@ -189,21 +198,32 @@ class AgentRuntimeService:
         Determines if the user's message matches any tool capabilities declared in the blueprint.
         """
         msg_lower = user_message.lower()
+
+        # Prioritize specific action intents first (e.g. 'refund' takes precedence over 'order')
+        if "refund" in msg_lower:
+            for tool in blueprint.tools:
+                if "refund" in tool.name.lower():
+                    return tool
+        if "order" in msg_lower:
+            for tool in blueprint.tools:
+                if "order" in tool.name.lower():
+                    return tool
+        if "lead" in msg_lower or "demo" in msg_lower:
+            for tool in blueprint.tools:
+                if "lead" in tool.name.lower() or "score" in tool.name.lower():
+                    return tool
+        if "ticket" in msg_lower or "bug" in msg_lower:
+            for tool in blueprint.tools:
+                if "ticket" in tool.name.lower():
+                    return tool
+
         for tool in blueprint.tools:
             name_terms = tool.name.lower().replace("_", " ").split()
             desc_terms = tool.description.lower().split()
             keywords = set(name_terms + [t for t in desc_terms if len(t) > 4])
             if any(kw in msg_lower for kw in keywords):
                 return tool
-            # Common heuristics
-            if "order" in msg_lower and "order" in tool.name.lower():
-                return tool
-            if "refund" in msg_lower and "refund" in tool.name.lower():
-                return tool
-            if ("lead" in msg_lower or "demo" in msg_lower) and ("lead" in tool.name.lower() or "score" in tool.name.lower()):
-                return tool
-            if ("ticket" in msg_lower or "bug" in msg_lower) and "ticket" in tool.name.lower():
-                return tool
+
         return None
 
     async def chat(
@@ -237,7 +257,9 @@ class AgentRuntimeService:
                 )
 
         # 1. Deterministic Middleware Guardrail Enforcement
-        is_blocked, sanitized_text, triggered_rail = self.check_middleware_guardrails(blueprint, user_text)
+        is_blocked, sanitized_text, triggered_rail = self.check_middleware_guardrails(
+            blueprint, user_text, has_policy=(policy is not None)
+        )
         if is_blocked:
             return ChatResponse(
                 session_id=session_id,

@@ -144,9 +144,8 @@ class ShieldService:
 
         high_risk_caps: List[str] = []
         cred_patterns = [
-            r"harvest", r"steal", r"ask\s+(caller'?s?|user'?s?|for|the)?\s*password",
-            r"collect\s+(caller'?s?|user'?s?|for|the)?\s*password",
-            r"request\s+(caller'?s?|user'?s?|for|the)?\s*password",
+            r"harvest", r"steal",
+            r"(?:ask|request|collect|provide|enter)s?\s+.*(?:password|pin|credential|secret\s*key|private\s*key)",
             r"seed\s*phrase", r"private\s*key", r"secret\s*key", r"\bssn\b", r"credit\s*card\s*cvv"
         ]
         if any(re.search(p, desc_lower) for p in cred_patterns):

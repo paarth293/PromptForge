@@ -356,8 +356,8 @@ class LLMClient:
 
             high_risk_caps = []
             cred_patterns = [
-                r"harvest", r"steal", r"ask\s+(caller'?s?|user'?s?|for|the)?\s*password",
-                r"collect\s+(caller'?s?|user'?s?|for|the)?\s*password",
+                r"harvest", r"steal",
+                r"(?:ask|request|collect|provide|enter)s?\s+.*(?:password|pin|credential|secret\s*key|private\s*key)",
                 r"seed\s*phrase", r"secret\s*key", r"\bssn\b"
             ]
             if any(re.search(p, spec_part) for p in cred_patterns):
@@ -753,16 +753,36 @@ class LLMClient:
                 ]
             })
         elif "intent decomposition" in user_lower or "agent specification" in user_lower or "decomposition principles" in user_lower or "spec" in user_lower:
+            desc_text = user_lower
+            if "user description:" in user_lower:
+                parts = user_lower.split("user description:")
+                if len(parts) > 1:
+                    rem = parts[1]
+                    if "decomposition principles:" in rem:
+                        desc_text = rem.split("decomposition principles:")[0]
+                    else:
+                        desc_text = rem[:250]
+
+            decomp_domain = "customer_support"
+            if any(k in desc_text for k in ["health", "medical", "clinical", "patient", "symptom"]):
+                decomp_domain = "healthcare"
+            elif any(k in desc_text for k in ["finance", "financial", "banking", "wealth", "stock", "portfolio", "crypto", "asset"]):
+                decomp_domain = "finance"
+            elif any(k in desc_text for k in ["legal", "law", "lease", "contract", "attorney", "liabilit"]):
+                decomp_domain = "legal"
+            elif any(k in desc_text for k in ["sales", "lead", "qualif"]):
+                decomp_domain = "sales"
+
             content = json.dumps({
                 "agent_name": "DemoAssistant",
-                "domain": "customer_support",
+                "domain": decomp_domain,
                 "inferred_capabilities": [
-                    {"name": "Refund Processing", "description": "Processes refunds within approved threshold", "confirmed": True},
+                    {"name": f"{decomp_domain.title()} Processing", "description": "Handles domain requests within policy", "confirmed": True},
                     {"name": "FAQ Resolution", "description": "Answers common user questions", "confirmed": True},
-                    {"name": "Bug Escalation", "description": "Escalates issues to engineering", "confirmed": True}
+                    {"name": "Escalation", "description": "Escalates issues to engineering", "confirmed": True}
                 ],
-                "boundaries": ["Refund limit $500", "No access to account passwords"],
-                "risk_domain": "retail_saas"
+                "boundaries": ["Strict compliance with policy", "No access to account passwords"],
+                "risk_domain": decomp_domain
             })
         elif any(w in user_lower for w in ["refund", "order", "discount", "ticket", "remboursement", "tier", "limit"]):
             if any(w in user_lower for w in ["600", "500.01", "1000", "1500", "50%", "exceed"]):
