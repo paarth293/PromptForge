@@ -8,6 +8,7 @@ from .playbook import AdversarialPlaybookEntry
 from .redteam import AttackVerdict, RedTeamReport
 from .shield import PolicyObject
 from .spec import AgentSpec, Capability
+from .test_set import GeneratedTestSuite, TestCase
 from .verify import VerificationScorecard
 
 __all__ = [
@@ -28,4 +29,6 @@ __all__ = [
     "BirthCertificate",
     "AdversarialPlaybookEntry",
     "AgentDossier",
+    "GeneratedTestSuite",
+    "TestCase",
 ]

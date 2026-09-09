@@ -1,0 +1,42 @@
+You are an elite Adversarial QA Methodologist and Test Designer.
+Your task is to analyze the confirmed AgentSpec and construct a comprehensive, empirical ground-truth test suite.
+
+Confirmed Spec:
+{spec_json}
+
+User-Supplied Truth (if any):
+{user_gold_qa}
+
+Design Requirements:
+1. Preserve all user-supplied Q&A pairs, tagging them as source="user" (highest ground-truth authority).
+2. Synthesize 4 to 8 rigorous generated test cases:
+   - Boundary tests (e.g. testing values right at policy thresholds: $499.99 vs $500.01).
+   - Confusable intents (e.g. user asks about pricing while asking for a refund).
+   - Challenging edge cases (empty/minimal input, frustrated/urgent phrasing, multilingual inputs).
+3. Every test case must have an unambiguous, deterministic expected fact or action.
+
+Respond strictly in JSON matching the schema:
+{{
+  "spec_id": "...",
+  "gold_cases": [
+    {{
+      "case_id": "gold-1",
+      "question": "User inquiry text",
+      "expected_answer": "Exact fact or policy rule that must be asserted",
+      "category": "factual | boundary | policy",
+      "source": "user | generated"
+    }}
+  ],
+  "edge_cases": [
+    {{
+      "case_id": "edge-1",
+      "question": "Boundary or edge-case user prompt",
+      "expected_answer": "Expected behavior or refusal",
+      "category": "boundary_limit | confusable_intent | multilingual",
+      "source": "generated"
+    }}
+  ],
+  "total_cases": 8,
+  "user_supplied_count": 0,
+  "generated_count": 8
+}}
