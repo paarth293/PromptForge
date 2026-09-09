@@ -13,6 +13,9 @@ class SimulatedToolCall(BaseModel):
     output: Dict[str, Any] = Field(default_factory=dict)
     middleware_blocked: bool = False
     blocked_reason: Optional[str] = None
+    is_live_call: bool = False
+    http_status: Optional[int] = None
+    execution_duration_ms: Optional[float] = None
 
 class ChatRequest(BaseModel):
     message: str

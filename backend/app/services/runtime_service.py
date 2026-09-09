@@ -3,6 +3,7 @@ import re
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
+from ..core.api_executor import ApiExecutionRequest, ApiExecutor, get_api_executor
 from ..core.policy_middleware import PolicyEnforcementMiddleware, get_policy_middleware
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, LLMMessage, get_llm_client
@@ -24,11 +25,13 @@ class AgentRuntimeService:
         self,
         repo: Optional[PipelineRepository] = None,
         llm: Optional[LLMClient] = None,
-        policy_middleware: Optional[PolicyEnforcementMiddleware] = None
+        policy_middleware: Optional[PolicyEnforcementMiddleware] = None,
+        api_executor: Optional[ApiExecutor] = None
     ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
         self.policy_middleware = policy_middleware or get_policy_middleware()
+        self.api_executor = api_executor or get_api_executor()
 
     def check_middleware_guardrails(
         self,
@@ -189,6 +192,93 @@ class AgentRuntimeService:
             middleware_blocked=False
         )
 
+    async def execute_tool_call(
+        self,
+        tool: ToolSchema,
+        message: str,
+        policy: Optional[PolicyObject] = None
+    ) -> SimulatedToolCall:
+        """
+        Executes a tool call. If tool.is_simulated is True, uses deterministic simulation.
+        If tool.is_simulated is False and endpoint_binding is defined, invokes the real
+        HTTP ApiExecutor against the allowlisted endpoint.
+        Deterministic policy middleware is enforced prior to any external network dispatch.
+        """
+        if tool.is_simulated or not tool.endpoint_binding:
+            return self.simulate_tool_execution(tool, message, policy=policy)
+
+        tool_name = tool.name.lower()
+        parameters: Dict[str, Any] = {}
+
+        if "order" in tool_name or "lookup" in tool_name:
+            match = re.search(r"(?:order\s*#?|#)([A-Za-z0-9\-]+)", message, re.IGNORECASE)
+            if not match:
+                match = re.search(r"\b(ORD-[A-Za-z0-9\-]+)\b", message, re.IGNORECASE)
+            if not match:
+                match = re.search(r"#?([A-Za-z0-9\-]+)", message)
+            order_id = match.group(1) if match else "ORD-9821"
+            parameters = {"order_id": order_id}
+        elif "refund" in tool_name:
+            amount_match = re.search(r"\$?(\d+(?:\.\d+)?)", message)
+            amount = float(amount_match.group(1)) if amount_match else 49.99
+            order_match = re.search(r"\b(ORD-[A-Za-z0-9\-]+)\b", message, re.IGNORECASE)
+            order_id = order_match.group(1) if order_match else "ORD-9821"
+            parameters = {"amount": amount, "order_id": order_id}
+        else:
+            parameters = {"query": message[:80]}
+
+        # Enforce deterministic policy middleware before dispatch
+        if policy:
+            policy_res = self.policy_middleware.check_tool_policy(policy, tool.name, parameters)
+            if not policy_res.allowed:
+                return SimulatedToolCall(
+                    tool_name=tool.name,
+                    parameters=parameters,
+                    output={
+                        "success": False,
+                        "blocked": True,
+                        "middleware_blocked": True,
+                        "error": policy_res.blocked_reason,
+                        "escalation": True,
+                        "escalation_queue": policy_res.escalation_queue
+                    },
+                    middleware_blocked=True,
+                    blocked_reason=policy_res.blocked_reason
+                )
+
+        # Build URL from endpoint_binding
+        url = tool.endpoint_binding
+        for k, v in parameters.items():
+            url = url.replace(f"{{{k}}}", str(v))
+
+        method = "GET" if ("lookup" in tool_name or "get" in tool_name or "query" in tool_name) else "POST"
+        req = ApiExecutionRequest(
+            url=url,
+            method=method,
+            params=parameters if method == "GET" else None,
+            json_body=parameters if method != "GET" else None
+        )
+        api_result = await self.api_executor.call_api(req)
+
+        output_dict = (
+            api_result.response_data
+            if isinstance(api_result.response_data, dict)
+            else {"result": api_result.response_data}
+        )
+        if not api_result.success:
+            output_dict["success"] = False
+            output_dict["error"] = api_result.error
+
+        return SimulatedToolCall(
+            tool_name=tool.name,
+            parameters=parameters,
+            output=output_dict,
+            middleware_blocked=False,
+            is_live_call=True,
+            http_status=api_result.status_code,
+            execution_duration_ms=api_result.execution_duration_ms
+        )
+
     def detect_tool_invocation_intent(
         self,
         blueprint: AgentBlueprint,
@@ -286,7 +376,7 @@ class AgentRuntimeService:
         invoked_tool = self.detect_tool_invocation_intent(blueprint, sanitized_text)
         tool_context_str = ""
         if invoked_tool:
-            tool_call = self.simulate_tool_execution(invoked_tool, sanitized_text, policy=policy)
+            tool_call = await self.execute_tool_call(invoked_tool, sanitized_text, policy=policy)
             tool_calls.append(tool_call)
 
             # Check if tool was blocked at middleware layer
@@ -299,7 +389,8 @@ class AgentRuntimeService:
                     policy_triggered="tool_policy_violation"
                 )
 
-            tool_context_str = f"\n[Simulated Tool Execution: {tool_call.tool_name}({tool_call.parameters}) -> {tool_call.output}]"
+            notice_title = "Live Tool Execution" if tool_call.is_live_call else "Simulated Tool Execution"
+            tool_context_str = f"\n[{notice_title}: {tool_call.tool_name}({tool_call.parameters}) -> {tool_call.output}]"
 
         # 3. Formulate Prompt and LLM Conversation
         messages: List[LLMMessage] = [
