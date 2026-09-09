@@ -145,6 +145,8 @@ class AlignmentAuditResult(BaseModel):
 class VerificationScorecard(BaseModel):
     scorecard_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     blueprint_id: str
+    agent_name: str = "Agent"
+    birth_certificate_hash: Optional[str] = None
     user_gold_score: Optional[Tuple[int, int]] = None  # (passed, total)
     generated_set_score: Tuple[int, int]  # (passed, total)
     goal_completion_score: Tuple[int, int]  # (passed, total)
@@ -152,6 +154,8 @@ class VerificationScorecard(BaseModel):
     adversarial_survival_score: Tuple[int, int]  # (blocked, total)
     judge_cross_check: Optional[Tuple[int, int]] = None  # (agreed, sampled)
     alignment_audit_score: float = 1.0  # 0.0 to 1.0
+    category_breakdown: Optional[Dict[str, str]] = None
+    difficulty_mix: Optional[str] = None
     promptforge_composite_score: int  # 0 to 100
     formula_disclosed: str
     scorecard_hash: Optional[str] = None
