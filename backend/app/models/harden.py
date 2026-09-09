@@ -22,6 +22,15 @@ class ProposedPatchesOutput(BaseModel):
     patches: List[PatchEntry] = Field(default_factory=list)
     summary: str = ""
 
+class HardeningPassRecord(BaseModel):
+    pass_number: int
+    categories_targeted: List[str] = Field(default_factory=list)
+    patches_applied: List[PatchEntry] = Field(default_factory=list)
+    sessions_run: int = 0
+    survival_rate_before: float = 0.0
+    survival_rate_after: float = 0.0
+
+
 class HardeningLog(BaseModel):
     log_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     initial_blueprint_id: str
@@ -30,5 +39,19 @@ class HardeningLog(BaseModel):
     final_survival_rate: float
     pass_count: int
     applied_patches: List[PatchEntry] = Field(default_factory=list)
+    pass_records: List[HardeningPassRecord] = Field(default_factory=list)
     log_hash: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class HardeningLoopResult(BaseModel):
+    initial_blueprint_id: str
+    hardened_blueprint_id: str
+    initial_survival_rate: float
+    final_survival_rate: float
+    threshold_met: bool
+    total_passes: int
+    applied_patches: List[PatchEntry] = Field(default_factory=list)
+    pass_records: List[HardeningPassRecord] = Field(default_factory=list)
+    hardening_log: HardeningLog
+

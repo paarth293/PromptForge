@@ -155,6 +155,26 @@ class PipelineRepository:
             )
             await conn.commit()
 
+    async def get_hardening_log(self, log_id: str) -> Optional[HardeningLog]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM hardening_logs WHERE log_id = ?;", (log_id,))
+            row = await cursor.fetchone()
+            if row:
+                return HardeningLog.model_validate_json(row[0])
+            return None
+
+    async def list_hardening_logs_for_blueprint(self, blueprint_id: str) -> List[HardeningLog]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT data_json FROM hardening_logs WHERE initial_blueprint_id = ? OR hardened_blueprint_id = ? ORDER BY created_at DESC;",
+                (blueprint_id, blueprint_id)
+            )
+            rows = await cursor.fetchall()
+            return [HardeningLog.model_validate_json(row[0]) for row in rows]
+
+
     # VerificationScorecard
     async def save_scorecard(self, scorecard: VerificationScorecard):
         async with self._connect() as conn:
