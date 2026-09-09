@@ -6,11 +6,21 @@ from pydantic import BaseModel, Field
 
 
 class PatchEntry(BaseModel):
-    patch_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    patch_id: str = Field(default_factory=lambda: f"PATCH-{uuid.uuid4().hex[:6].upper()}")
     category: str
     target: str  # "system_prompt", "guardrails", "tool_policy"
+    target_name: Optional[str] = None
+    action: str = "add"  # "add", "modify", "replace", "delete"
+    original_snippet: Optional[str] = None
+    patched_snippet: Optional[str] = None
     diff: str
     rationale: str
+
+
+class ProposedPatchesOutput(BaseModel):
+    failing_categories: List[str] = Field(default_factory=list)
+    patches: List[PatchEntry] = Field(default_factory=list)
+    summary: str = ""
 
 class HardeningLog(BaseModel):
     log_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
