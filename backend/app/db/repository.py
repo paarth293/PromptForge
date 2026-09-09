@@ -8,6 +8,8 @@ from ..models import (
     AgentBlueprint,
     AgentDossier,
     AgentSpec,
+    ArenaPairingTranscript,
+    ArenaRunResult,
     AuditEvent,
     BirthCertificate,
     DeploymentPackage,
@@ -959,6 +961,270 @@ class PipelineRepository:
                     )
                 )
             return logs
+
+    # Arena Persistence Methods
+    async def save_arena_pairing(self, pairing: ArenaPairingTranscript):
+        async with self._connect() as conn:
+            import json
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO arena_pairings (
+                    pairing_id, target_blueprint_id, target_agent_name, hostile_persona_type,
+                    hostile_persona_name, adversarial_goal, turns_json, verdict,
+                    verdict_rationale, cited_evidence_json, seam_attack_attempted,
+                    seam_attack_blocked, playbook_pattern_discovered, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    pairing.pairing_id,
+                    pairing.target_blueprint_id,
+                    pairing.target_agent_name,
+                    pairing.hostile_persona_type,
+                    pairing.hostile_persona_name,
+                    pairing.adversarial_goal,
+                    json.dumps([t.model_dump(mode="json") for t in pairing.turns]),
+                    pairing.verdict,
+                    pairing.verdict_rationale,
+                    json.dumps(pairing.cited_evidence),
+                    1 if pairing.seam_attack_attempted else 0,
+                    1 if pairing.seam_attack_blocked else 0,
+                    pairing.playbook_pattern_discovered,
+                    pairing.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_arena_pairing(self, pairing_id: str) -> Optional[ArenaPairingTranscript]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.arena import ArenaTurn
+            cursor = await conn.execute(
+                """
+                SELECT pairing_id, target_blueprint_id, target_agent_name, hostile_persona_type,
+                       hostile_persona_name, adversarial_goal, turns_json, verdict,
+                       verdict_rationale, cited_evidence_json, seam_attack_attempted,
+                       seam_attack_blocked, playbook_pattern_discovered, created_at
+                FROM arena_pairings WHERE pairing_id = ?;
+                """,
+                (pairing_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                turns_raw = json.loads(row[6]) if row[6] else []
+                turns = [ArenaTurn.model_validate(t) for t in turns_raw]
+                evidence = json.loads(row[9]) if row[9] else []
+                return ArenaPairingTranscript(
+                    pairing_id=row[0],
+                    target_blueprint_id=row[1],
+                    target_agent_name=row[2],
+                    hostile_persona_type=row[3],
+                    hostile_persona_name=row[4],
+                    adversarial_goal=row[5],
+                    turns=turns,
+                    verdict=row[7],
+                    verdict_rationale=row[8] or "",
+                    cited_evidence=evidence,
+                    seam_attack_attempted=bool(row[10]),
+                    seam_attack_blocked=bool(row[11]),
+                    playbook_pattern_discovered=row[12],
+                    created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def list_arena_pairings_by_blueprint(self, target_blueprint_id: str) -> List[ArenaPairingTranscript]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.arena import ArenaTurn
+            cursor = await conn.execute(
+                """
+                SELECT pairing_id, target_blueprint_id, target_agent_name, hostile_persona_type,
+                       hostile_persona_name, adversarial_goal, turns_json, verdict,
+                       verdict_rationale, cited_evidence_json, seam_attack_attempted,
+                       seam_attack_blocked, playbook_pattern_discovered, created_at
+                FROM arena_pairings WHERE target_blueprint_id = ? ORDER BY created_at DESC;
+                """,
+                (target_blueprint_id,),
+            )
+            rows = await cursor.fetchall()
+            pairings = []
+            for row in rows:
+                turns_raw = json.loads(row[6]) if row[6] else []
+                turns = [ArenaTurn.model_validate(t) for t in turns_raw]
+                evidence = json.loads(row[9]) if row[9] else []
+                pairings.append(
+                    ArenaPairingTranscript(
+                        pairing_id=row[0],
+                        target_blueprint_id=row[1],
+                        target_agent_name=row[2],
+                        hostile_persona_type=row[3],
+                        hostile_persona_name=row[4],
+                        adversarial_goal=row[5],
+                        turns=turns,
+                        verdict=row[7],
+                        verdict_rationale=row[8] or "",
+                        cited_evidence=evidence,
+                        seam_attack_attempted=bool(row[10]),
+                        seam_attack_blocked=bool(row[11]),
+                        playbook_pattern_discovered=row[12],
+                        created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                    )
+                )
+            return pairings
+
+    async def save_arena_run(self, result: ArenaRunResult):
+        async with self._connect() as conn:
+            import json
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO arena_runs (
+                    arena_run_id, target_blueprint_id, target_agent_name, tenant_id,
+                    pairings_json, total_pairings_run, pairings_defended, pairings_compromised,
+                    seam_attacks_run, seam_attacks_intercepted, arena_security_score,
+                    cross_agent_playbook_entries_added, run_duration_seconds, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    result.arena_run_id,
+                    result.target_blueprint_id,
+                    result.target_agent_name,
+                    result.tenant_id,
+                    json.dumps([p.model_dump(mode="json") for p in result.pairings]),
+                    result.total_pairings_run,
+                    result.pairings_defended,
+                    result.pairings_compromised,
+                    result.seam_attacks_run,
+                    result.seam_attacks_intercepted,
+                    result.arena_security_score,
+                    result.cross_agent_playbook_entries_added,
+                    result.run_duration_seconds,
+                    result.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_arena_run(self, arena_run_id: str) -> Optional[ArenaRunResult]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.arena import ArenaPairingTranscript
+            cursor = await conn.execute(
+                """
+                SELECT arena_run_id, target_blueprint_id, target_agent_name, tenant_id,
+                       pairings_json, total_pairings_run, pairings_defended, pairings_compromised,
+                       seam_attacks_run, seam_attacks_intercepted, arena_security_score,
+                       cross_agent_playbook_entries_added, run_duration_seconds, created_at
+                FROM arena_runs WHERE arena_run_id = ?;
+                """,
+                (arena_run_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                pairings_raw = json.loads(row[4]) if row[4] else []
+                pairings = [ArenaPairingTranscript.model_validate(p) for p in pairings_raw]
+                return ArenaRunResult(
+                    arena_run_id=row[0],
+                    target_blueprint_id=row[1],
+                    target_agent_name=row[2],
+                    tenant_id=row[3],
+                    pairings=pairings,
+                    total_pairings_run=row[5],
+                    pairings_defended=row[6],
+                    pairings_compromised=row[7],
+                    seam_attacks_run=row[8],
+                    seam_attacks_intercepted=row[9],
+                    arena_security_score=row[10],
+                    cross_agent_playbook_entries_added=row[11],
+                    run_duration_seconds=row[12],
+                    created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def get_latest_arena_run_by_blueprint(self, target_blueprint_id: str) -> Optional[ArenaRunResult]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.arena import ArenaPairingTranscript
+            cursor = await conn.execute(
+                """
+                SELECT arena_run_id, target_blueprint_id, target_agent_name, tenant_id,
+                       pairings_json, total_pairings_run, pairings_defended, pairings_compromised,
+                       seam_attacks_run, seam_attacks_intercepted, arena_security_score,
+                       cross_agent_playbook_entries_added, run_duration_seconds, created_at
+                FROM arena_runs WHERE target_blueprint_id = ? ORDER BY created_at DESC LIMIT 1;
+                """,
+                (target_blueprint_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                pairings_raw = json.loads(row[4]) if row[4] else []
+                pairings = [ArenaPairingTranscript.model_validate(p) for p in pairings_raw]
+                return ArenaRunResult(
+                    arena_run_id=row[0],
+                    target_blueprint_id=row[1],
+                    target_agent_name=row[2],
+                    tenant_id=row[3],
+                    pairings=pairings,
+                    total_pairings_run=row[5],
+                    pairings_defended=row[6],
+                    pairings_compromised=row[7],
+                    seam_attacks_run=row[8],
+                    seam_attacks_intercepted=row[9],
+                    arena_security_score=row[10],
+                    cross_agent_playbook_entries_added=row[11],
+                    run_duration_seconds=row[12],
+                    created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def list_arena_runs(self, limit: int = 20) -> List[ArenaRunResult]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.arena import ArenaPairingTranscript
+            cursor = await conn.execute(
+                """
+                SELECT arena_run_id, target_blueprint_id, target_agent_name, tenant_id,
+                       pairings_json, total_pairings_run, pairings_defended, pairings_compromised,
+                       seam_attacks_run, seam_attacks_intercepted, arena_security_score,
+                       cross_agent_playbook_entries_added, run_duration_seconds, created_at
+                FROM arena_runs ORDER BY created_at DESC LIMIT ?;
+                """,
+                (limit,),
+            )
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                pairings_raw = json.loads(row[4]) if row[4] else []
+                pairings = [ArenaPairingTranscript.model_validate(p) for p in pairings_raw]
+                results.append(
+                    ArenaRunResult(
+                        arena_run_id=row[0],
+                        target_blueprint_id=row[1],
+                        target_agent_name=row[2],
+                        tenant_id=row[3],
+                        pairings=pairings,
+                        total_pairings_run=row[5],
+                        pairings_defended=row[6],
+                        pairings_compromised=row[7],
+                        seam_attacks_run=row[8],
+                        seam_attacks_intercepted=row[9],
+                        arena_security_score=row[10],
+                        cross_agent_playbook_entries_added=row[11],
+                        run_duration_seconds=row[12],
+                        created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                    )
+                )
+            return results
+
 
 
 
