@@ -39,12 +39,20 @@ from .models.audit_import import (
     UniversalAuditImportRequest,
 )
 from .models.harden import HardeningLoopResult
+from .models.monitor import (
+    CreateMonitorScheduleRequest,
+    MonitorHistoryResponse,
+    MonitorRunResult,
+    MonitorSchedule,
+    TriggerMonitorRunRequest,
+)
 from .services.audit_import_service import AuditImportService
 from .services.audit_pipeline_service import AuditPipelineService
 from .services.certificate_service import CertificateService
 from .services.deployment_service import DeploymentService
 from .services.forge_service import ForgeService
 from .services.harden_service import HardenService
+from .services.monitor_service import MonitorService
 from .services.redteam_service import RedTeamService
 from .services.runtime_service import AgentRuntimeService
 from .services.verify_service import VerifyService
@@ -720,6 +728,71 @@ async def import_and_run_audit_pipeline_endpoint(
         max_harden_passes=req.max_harden_passes,
         reattack_count_per_category=req.reattack_count_per_category,
     )
+
+
+# =========================================================================
+# PHASE 9: STAGE 6 (MONITOR) ENDPOINTS
+# =========================================================================
+
+@app.post("/api/monitor/schedules", response_model=MonitorSchedule)
+async def create_monitor_schedule_endpoint(
+    req: CreateMonitorScheduleRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = MonitorService(repo=repo)
+    return await service.create_schedule(
+        agent_id=req.agent_id,
+        blueprint_id=req.blueprint_id,
+        interval_seconds=req.interval_seconds,
+        attacks_per_run=req.attacks_per_run,
+        tenant_id=tenant_id,
+    )
+
+
+@app.get("/api/monitor/schedules/{agent_id}", response_model=List[MonitorSchedule])
+async def list_monitor_schedules_endpoint(
+    agent_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    return await repo.list_schedules_by_agent(agent_id)
+
+
+@app.post("/api/monitor/run/{agent_id}", response_model=MonitorRunResult)
+async def trigger_monitor_run_endpoint(
+    agent_id: str,
+    req: TriggerMonitorRunRequest = TriggerMonitorRunRequest(),
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = MonitorService(repo=repo)
+    return await service.execute_monitor_run(
+        agent_id=agent_id,
+        attacks_per_run=req.attacks_per_run or 5,
+        drift_threshold=req.drift_threshold,
+        tenant_id=tenant_id,
+    )
+
+
+@app.post("/api/monitor/schedules/run-pending", response_model=List[MonitorRunResult])
+async def run_pending_schedules_endpoint(
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = MonitorService(repo=repo)
+    return await service.run_pending_schedules()
+
+
+@app.get("/api/monitor/history/{agent_id}", response_model=MonitorHistoryResponse)
+async def get_monitor_history_endpoint(
+    agent_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = MonitorService(repo=repo)
+    return await service.get_agent_monitor_history(agent_id)
+
 
 
 

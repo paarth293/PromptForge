@@ -12,6 +12,14 @@ from .certificate import BirthCertificate, CertificateVerificationResult
 from .deployment import DeploymentPackage
 from .dossier import AgentDossier
 from .harden import HardeningLog, PatchEntry
+from .monitor import (
+    CreateMonitorScheduleRequest,
+    MonitorAlert,
+    MonitorHistoryResponse,
+    MonitorRunResult,
+    MonitorSchedule,
+    TriggerMonitorRunRequest,
+)
 from .playbook import AdversarialPlaybookEntry
 from .redteam import (
     AttackerPersonaOutput,
@@ -90,5 +98,11 @@ __all__ = [
     "SimulatedToolCall",
     "ChatRequest",
     "ChatResponse",
+    "MonitorSchedule",
+    "CreateMonitorScheduleRequest",
+    "TriggerMonitorRunRequest",
+    "MonitorRunResult",
+    "MonitorAlert",
+    "MonitorHistoryResponse",
 ]
 

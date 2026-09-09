@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from typing import List, Optional
 
 import aiosqlite
@@ -11,6 +12,9 @@ from ..models import (
     BirthCertificate,
     DeploymentPackage,
     HardeningLog,
+    MonitorAlert,
+    MonitorRunResult,
+    MonitorSchedule,
     PolicyObject,
     ProvenanceRegistryEntry,
     RedTeamReport,
@@ -484,5 +488,263 @@ class PipelineRepository:
                 cursor = await conn.execute("SELECT data_json FROM deployments ORDER BY deployed_at DESC;")
             rows = await cursor.fetchall()
             return [DeploymentPackage.model_validate_json(row[0]) for row in rows]
+
+    # MonitorSchedule
+    async def save_monitor_schedule(self, schedule: MonitorSchedule):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA foreign_keys = ON;")
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO monitor_schedules (
+                    schedule_id, agent_id, blueprint_id, tenant_id, interval_seconds,
+                    is_active, last_run_at, next_run_at, attacks_per_run, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    schedule.schedule_id,
+                    schedule.agent_id,
+                    schedule.blueprint_id,
+                    schedule.tenant_id,
+                    schedule.interval_seconds,
+                    1 if schedule.is_active else 0,
+                    schedule.last_run_at.isoformat() if schedule.last_run_at else None,
+                    schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+                    schedule.attacks_per_run,
+                    schedule.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_monitor_schedule(self, schedule_id: str) -> Optional[MonitorSchedule]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT schedule_id, agent_id, blueprint_id, tenant_id, interval_seconds, is_active, last_run_at, next_run_at, attacks_per_run, created_at FROM monitor_schedules WHERE schedule_id = ?;",
+                (schedule_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return MonitorSchedule(
+                    schedule_id=row[0],
+                    agent_id=row[1],
+                    blueprint_id=row[2],
+                    tenant_id=row[3],
+                    interval_seconds=row[4],
+                    is_active=bool(row[5]),
+                    last_run_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                    next_run_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                    attacks_per_run=row[8],
+                    created_at=datetime.fromisoformat(row[9]) if row[9] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def list_active_monitor_schedules(self) -> List[MonitorSchedule]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT schedule_id, agent_id, blueprint_id, tenant_id, interval_seconds, is_active, last_run_at, next_run_at, attacks_per_run, created_at FROM monitor_schedules WHERE is_active = 1;"
+            )
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                results.append(
+                    MonitorSchedule(
+                        schedule_id=row[0],
+                        agent_id=row[1],
+                        blueprint_id=row[2],
+                        tenant_id=row[3],
+                        interval_seconds=row[4],
+                        is_active=bool(row[5]),
+                        last_run_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                        next_run_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                        attacks_per_run=row[8],
+                        created_at=datetime.fromisoformat(row[9]) if row[9] else datetime.now(timezone.utc),
+                    )
+                )
+            return results
+
+    async def list_schedules_by_agent(self, agent_id: str) -> List[MonitorSchedule]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT schedule_id, agent_id, blueprint_id, tenant_id, interval_seconds, is_active, last_run_at, next_run_at, attacks_per_run, created_at FROM monitor_schedules WHERE agent_id = ? ORDER BY created_at DESC;",
+                (agent_id,),
+            )
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                results.append(
+                    MonitorSchedule(
+                        schedule_id=row[0],
+                        agent_id=row[1],
+                        blueprint_id=row[2],
+                        tenant_id=row[3],
+                        interval_seconds=row[4],
+                        is_active=bool(row[5]),
+                        last_run_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                        next_run_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                        attacks_per_run=row[8],
+                        created_at=datetime.fromisoformat(row[9]) if row[9] else datetime.now(timezone.utc),
+                    )
+                )
+            return results
+
+    # MonitorRunResult
+    async def save_monitor_run(self, run: MonitorRunResult):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            await conn.execute("PRAGMA foreign_keys = ON;")
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO monitor_runs (
+                    run_id, schedule_id, agent_id, blueprint_id, tenant_id,
+                    baseline_survival_rate, current_survival_rate, survival_delta,
+                    drift_detected, drift_severity, action_taken, action_details, report_id, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    run.run_id,
+                    run.schedule_id,
+                    run.agent_id,
+                    run.blueprint_id,
+                    run.tenant_id,
+                    run.baseline_survival_rate,
+                    run.current_survival_rate,
+                    run.survival_delta,
+                    1 if run.drift_detected else 0,
+                    run.drift_severity,
+                    run.action_taken,
+                    json.dumps(run.action_details) if run.action_details else None,
+                    run.report_id,
+                    run.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_monitor_run(self, run_id: str) -> Optional[MonitorRunResult]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            cursor = await conn.execute(
+                "SELECT run_id, schedule_id, agent_id, blueprint_id, tenant_id, baseline_survival_rate, current_survival_rate, survival_delta, drift_detected, drift_severity, action_taken, action_details, report_id, created_at FROM monitor_runs WHERE run_id = ?;",
+                (run_id,),
+            )
+            row = await cursor.fetchone()
+            if row:
+                return MonitorRunResult(
+                    run_id=row[0],
+                    schedule_id=row[1],
+                    agent_id=row[2],
+                    blueprint_id=row[3],
+                    tenant_id=row[4],
+                    baseline_survival_rate=row[5],
+                    current_survival_rate=row[6],
+                    survival_delta=row[7],
+                    drift_detected=bool(row[8]),
+                    drift_severity=row[9],
+                    action_taken=row[10],
+                    action_details=json.loads(row[11]) if row[11] else None,
+                    report_id=row[12],
+                    created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                )
+            return None
+
+    async def list_monitor_runs_by_agent(self, agent_id: str, limit: int = 50) -> List[MonitorRunResult]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            cursor = await conn.execute(
+                "SELECT run_id, schedule_id, agent_id, blueprint_id, tenant_id, baseline_survival_rate, current_survival_rate, survival_delta, drift_detected, drift_severity, action_taken, action_details, report_id, created_at FROM monitor_runs WHERE agent_id = ? ORDER BY created_at DESC LIMIT ?;",
+                (agent_id, limit),
+            )
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                results.append(
+                    MonitorRunResult(
+                        run_id=row[0],
+                        schedule_id=row[1],
+                        agent_id=row[2],
+                        blueprint_id=row[3],
+                        tenant_id=row[4],
+                        baseline_survival_rate=row[5],
+                        current_survival_rate=row[6],
+                        survival_delta=row[7],
+                        drift_detected=bool(row[8]),
+                        drift_severity=row[9],
+                        action_taken=row[10],
+                        action_details=json.loads(row[11]) if row[11] else None,
+                        report_id=row[12],
+                        created_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(timezone.utc),
+                    )
+                )
+            return results
+
+    # MonitorAlert
+    async def save_monitor_alert(self, alert: MonitorAlert):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            await conn.execute("PRAGMA foreign_keys = ON;")
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO monitor_alerts (
+                    alert_id, agent_id, tenant_id, run_id, severity, status, message, metadata_json, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    alert.alert_id,
+                    alert.agent_id,
+                    alert.tenant_id,
+                    alert.run_id,
+                    alert.severity,
+                    alert.status,
+                    alert.message,
+                    json.dumps(alert.metadata) if alert.metadata else None,
+                    alert.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def list_monitor_alerts_by_agent(self, agent_id: str) -> List[MonitorAlert]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+            cursor = await conn.execute(
+                "SELECT alert_id, agent_id, tenant_id, run_id, severity, status, message, metadata_json, created_at FROM monitor_alerts WHERE agent_id = ? ORDER BY created_at DESC;",
+                (agent_id,),
+            )
+            rows = await cursor.fetchall()
+            results = []
+            for row in rows:
+                results.append(
+                    MonitorAlert(
+                        alert_id=row[0],
+                        agent_id=row[1],
+                        tenant_id=row[2],
+                        run_id=row[3],
+                        severity=row[4],
+                        status=row[5],
+                        message=row[6],
+                        metadata=json.loads(row[7]) if row[7] else {},
+                        created_at=datetime.fromisoformat(row[8]) if row[8] else datetime.now(timezone.utc),
+                    )
+                )
+            return results
+
+    async def update_monitor_alert_status(self, alert_id: str, status: str):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute(
+                "UPDATE monitor_alerts SET status = ? WHERE alert_id = ?;",
+                (status, alert_id),
+            )
+            await conn.commit()
+
 
 
