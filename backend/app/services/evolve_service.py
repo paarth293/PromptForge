@@ -19,6 +19,8 @@ from ..models.evolve import (
 from ..models.spec import AgentSpec
 from .audit_service import AuditTrailService
 from .forge_service import ForgeService
+from .redteam_service import RedTeamService
+from .verify_service import VerifyService
 
 logger = logging.getLogger("promptforge.services.evolve")
 
@@ -76,11 +78,15 @@ class EvolveService:
         repo: Optional[PipelineRepository] = None,
         llm: Optional[LLMClient] = None,
         forge_service: Optional[ForgeService] = None,
+        redteam_service: Optional[RedTeamService] = None,
+        verify_service: Optional[VerifyService] = None,
         audit_service: Optional[AuditTrailService] = None,
     ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
         self.forge_service = forge_service or ForgeService(repo=self.repo, llm=self.llm)
+        self.redteam_service = redteam_service or RedTeamService(repo=self.repo, llm=self.llm)
+        self.verify_service = verify_service or VerifyService(repo=self.repo, llm=self.llm)
         self.audit_service = audit_service or AuditTrailService(repo=self.repo)
         self.registry = get_prompt_registry()
 
@@ -213,3 +219,123 @@ class EvolveService:
             candidates=candidates,
             blueprints=blueprints,
         )
+
+    async def evaluate_candidate_fitness(
+        self,
+        candidate: EvolveCandidate,
+        spec: AgentSpec,
+        blueprint: AgentBlueprint,
+        attacks_per_candidate: int = 4,
+        include_alignment: bool = False,
+    ) -> EvolveCandidate:
+        """
+        Step 79: Fitness function via abbreviated battery:
+        Runs abbreviated Red Team + Verify battery per candidate and computes a single
+        fitness score using the Step 53 scorecard formula:
+        0.40 * generated_accuracy + 0.25 * goal_completion + 0.15 * consistency + 0.20 * adversarial_survival
+        """
+        # 1. Abbreviated Red Team run (e.g. 4 attacks across top personas)
+        attacks_per_persona = max(1, attacks_per_candidate // 4)
+        rt_report = await self.redteam_service.run_full_redteam_campaign(
+            blueprint=blueprint,
+            attacks_per_persona=attacks_per_persona,
+            include_ollama=False,
+        )
+        adv_survival_score = (rt_report.blocked_count, rt_report.total_attacks)
+        survival_rate = rt_report.survival_rate
+
+        # 2. Abbreviated Ground Truth evaluation
+        gt_res = await self.verify_service.evaluate_ground_truth(
+            blueprint=blueprint,
+            spec=spec,
+        )
+
+        # 3. Abbreviated Consistency evaluation (3 runs)
+        task_prompt = "Where is my order ORD-9821 and what is its FedEx delivery status?"
+        con_res = await self.verify_service.evaluate_consistency(
+            blueprint=blueprint,
+            task_prompt=task_prompt,
+            num_runs=3,
+        )
+
+        # 4. Abbreviated Goal Completion (2 journeys)
+        journeys = [
+            {
+                "goal_title": "Order Lookup & Tracking Inquiry",
+                "customer_persona": "Anxious customer checking delivery",
+                "target_goal": "Check delivery status and carrier tracking number for order #ORD-9821.",
+            },
+            {
+                "goal_title": "Policy-Compliant Refund Request",
+                "customer_persona": "Customer requesting valid refund",
+                "target_goal": "Request an authorized refund of $120 for an incorrect apparel order.",
+            },
+        ]
+        goal_res = await self.verify_service.evaluate_goal_completion(
+            blueprint=blueprint,
+            journeys=journeys,
+        )
+
+        # 5. Optional Alignment Audit
+        align_res = None
+        if include_alignment:
+            align_res = await self.verify_service.audit_spec_alignment(
+                blueprint=blueprint,
+                confirmed_spec=spec,
+            )
+
+        # 6. Compute composite scorecard using Step 53 formula
+        scorecard = await self.verify_service.aggregate_scorecard(
+            blueprint=blueprint,
+            ground_truth=gt_res,
+            consistency=con_res,
+            goal_completion=goal_res,
+            adversarial_survival_score=adv_survival_score,
+            alignment_audit=align_res,
+            persist=True,
+        )
+
+        # 7. Update candidate with comparable fitness score
+        candidate.fitness_score = float(scorecard.promptforge_composite_score)
+        candidate.survival_rate = survival_rate
+        candidate.goal_completion_rate = (
+            goal_res.successful_journeys / goal_res.total_journeys
+            if goal_res.total_journeys > 0
+            else 1.0
+        )
+        candidate.consistency_score = (
+            con_res.consistent_runs / con_res.total_runs
+            if con_res.total_runs > 0
+            else 1.0
+        )
+
+        logger.info(
+            f"Evaluated candidate {candidate.candidate_id} ({candidate.strategy}): "
+            f"Fitness={candidate.fitness_score}/100, Survival={survival_rate*100:.1f}%, "
+            f"Goal={candidate.goal_completion_rate*100:.1f}%, Consistency={candidate.consistency_score*100:.1f}%"
+        )
+        return candidate
+
+    async def evaluate_population_fitness(
+        self,
+        candidates: List[EvolveCandidate],
+        spec: AgentSpec,
+        blueprints: Dict[str, AgentBlueprint],
+        attacks_per_candidate: int = 4,
+    ) -> List[EvolveCandidate]:
+        """
+        Step 79: Runs the fitness evaluation across all candidates in a population,
+        returning them ranked by fitness_score in descending order.
+        """
+        tasks = [
+            self.evaluate_candidate_fitness(
+                candidate=c,
+                spec=spec,
+                blueprint=blueprints[c.blueprint_id],
+                attacks_per_candidate=attacks_per_candidate,
+            )
+            for c in candidates
+        ]
+        evaluated = await asyncio.gather(*tasks)
+        return sorted(evaluated, key=lambda c: (c.fitness_score or 0.0), reverse=True)
+
