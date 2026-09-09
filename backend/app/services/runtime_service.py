@@ -28,13 +28,15 @@ class AgentRuntimeService:
         llm: Optional[LLMClient] = None,
         policy_middleware: Optional[PolicyEnforcementMiddleware] = None,
         api_executor: Optional[ApiExecutor] = None,
-        stripe_adapter: Optional[StripeRefundAdapter] = None
+        stripe_adapter: Optional[StripeRefundAdapter] = None,
+        middleware_enabled: bool = True
     ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
         self.policy_middleware = policy_middleware or get_policy_middleware()
         self.api_executor = api_executor or get_api_executor()
         self.stripe_adapter = stripe_adapter or StripeRefundAdapter(api_executor=self.api_executor)
+        self.middleware_enabled = middleware_enabled
 
     def check_middleware_guardrails(
         self,
@@ -143,7 +145,7 @@ class AgentRuntimeService:
                         blocked_reason=policy_res.blocked_reason
                     )
 
-            if amount > 500:
+            if policy is not None and amount > 500:
                 return SimulatedToolCall(
                     tool_name=tool.name,
                     parameters=parameters,
@@ -343,23 +345,45 @@ class AgentRuntimeService:
     async def chat(
         self,
         blueprint_id: str,
-        request: ChatRequest
+        request: ChatRequest,
+        tenant_id: Optional[str] = None,
+        middleware_enabled: Optional[bool] = None
     ) -> ChatResponse:
         """
         Processes a conversational turn with the forged agent.
+        Enforces deterministic middleware gates:
+        - Tenant Isolation / Auth Gate
+        - Sliding-window Rate Limiting Gate
+        - Input Guardrail & Topic Blocklist Gate
+        - Tool Parameter Policy Gate
+        When middleware is disabled, the deterministic gates are bypassed, proving
+        that security enforcement is architectural rather than merely prompt-advisory.
         """
         blueprint = await self.repo.get_blueprint(blueprint_id)
         if not blueprint:
             raise ValueError(f"Blueprint with ID '{blueprint_id}' not found.")
 
+        # Determine middleware activation: request-level override takes precedence
+        mw_active = (
+            request.middleware_enabled
+            if request.middleware_enabled is not None
+            else (middleware_enabled if middleware_enabled is not None else self.middleware_enabled)
+        )
+
         session_id = request.session_id or str(uuid.uuid4())
         user_text = request.message
+
+        # Gate A: Tenant Isolation / Auth Middleware
+        effective_tenant = tenant_id or request.tenant_id
+        if mw_active and effective_tenant:
+            from ..core.tenancy import verify_tenant_access
+            verify_tenant_access(blueprint.tenant_id, effective_tenant)
 
         # Retrieve policy if available for this agent
         policy = await self.repo.get_policy_by_spec(blueprint.spec_id)
 
-        # 0. Deterministic Rate Limit Middleware
-        if policy:
+        # Gate B: Deterministic Rate Limit Middleware
+        if mw_active and policy:
             rate_res = self.policy_middleware.check_rate_limit(policy, client_id=session_id)
             if not rate_res.allowed:
                 return ChatResponse(
@@ -370,21 +394,24 @@ class AgentRuntimeService:
                     policy_triggered=rate_res.policy_rule
                 )
 
-        # 1. Deterministic Middleware Guardrail Enforcement
-        is_blocked, sanitized_text, triggered_rail = self.check_middleware_guardrails(
-            blueprint, user_text, has_policy=(policy is not None)
-        )
-        if is_blocked:
-            return ChatResponse(
-                session_id=session_id,
-                response=f"I cannot complete your request because it violates safety policy: [{triggered_rail}].",
-                tool_calls=[],
-                blocked=True,
-                guardrail_triggered=triggered_rail
+        # Gate C: Deterministic Middleware Guardrail Enforcement
+        if mw_active:
+            is_blocked, sanitized_text, triggered_rail = self.check_middleware_guardrails(
+                blueprint, user_text, has_policy=(policy is not None)
             )
+            if is_blocked:
+                return ChatResponse(
+                    session_id=session_id,
+                    response=f"I cannot complete your request because it violates safety policy: [{triggered_rail}].",
+                    tool_calls=[],
+                    blocked=True,
+                    guardrail_triggered=triggered_rail
+                )
+        else:
+            sanitized_text = user_text
 
-        # 1b. Deterministic Topic Blocklist Middleware
-        if policy:
+        # Gate D: Deterministic Topic Blocklist Middleware
+        if mw_active and policy:
             topic_res = self.policy_middleware.check_topic_blocklist(policy, sanitized_text)
             if not topic_res.allowed:
                 return ChatResponse(
@@ -395,16 +422,17 @@ class AgentRuntimeService:
                     policy_triggered=topic_res.policy_rule
                 )
 
-        # 2. Check for tool invocation
+        # Gate E: Check for tool invocation and enforce tool parameter policy
         tool_calls: List[SimulatedToolCall] = []
         invoked_tool = self.detect_tool_invocation_intent(blueprint, sanitized_text)
         tool_context_str = ""
         if invoked_tool:
-            tool_call = await self.execute_tool_call(invoked_tool, sanitized_text, policy=policy)
+            tool_policy = policy if mw_active else None
+            tool_call = await self.execute_tool_call(invoked_tool, sanitized_text, policy=tool_policy)
             tool_calls.append(tool_call)
 
             # Check if tool was blocked at middleware layer
-            if tool_call.middleware_blocked:
+            if mw_active and tool_call.middleware_blocked:
                 return ChatResponse(
                     session_id=session_id,
                     response=f"Tool execution blocked by deterministic policy middleware: {tool_call.blocked_reason}. An escalation record has been dispatched.",

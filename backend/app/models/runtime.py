@@ -21,6 +21,8 @@ class ChatRequest(BaseModel):
     message: str
     history: List[ChatMessage] = Field(default_factory=list)
     session_id: Optional[str] = None
+    tenant_id: Optional[str] = None
+    middleware_enabled: Optional[bool] = None
 
 class ChatResponse(BaseModel):
     session_id: str
