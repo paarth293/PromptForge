@@ -7,6 +7,8 @@ from .arena import (
     ArenaTurn,
     HostilePersonaType,
     SeamAttackPayload,
+    SeamAuditLogEntry,
+    SeamDetectionResult,
     SeamHandoffResult,
 )
 from .audit import AuditEvent
@@ -136,6 +138,8 @@ __all__ = [
     "HostilePersonaType",
     "SeamAttackPayload",
     "SeamHandoffResult",
+    "SeamDetectionResult",
+    "SeamAuditLogEntry",
     "ArenaTurn",
     "ArenaPairingTranscript",
     "ArenaRunResult",

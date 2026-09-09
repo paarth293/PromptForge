@@ -21,6 +21,7 @@ from ..models import (
     PolicyObject,
     ProvenanceRegistryEntry,
     RedTeamReport,
+    SeamAuditLogEntry,
     VerificationScorecard,
 )
 from .session import DB_PATH
@@ -1224,6 +1225,103 @@ class PipelineRepository:
                     )
                 )
             return results
+
+    # Seam Audit Log Persistence Methods
+    async def save_seam_audit_log(self, entry: SeamAuditLogEntry):
+        async with self._connect() as conn:
+            import json
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO seam_audit_logs (
+                    log_id, seam_id, source_agent_id, source_agent_name, target_agent_id,
+                    target_agent_name, channel, status, carrier_field, raw_payload,
+                    sanitized_payload, is_flagged, is_blocked, risk_score, detection_json,
+                    target_response, target_defense_action, log_hash, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    entry.log_id,
+                    entry.seam_id,
+                    entry.source_agent_id,
+                    entry.source_agent_name,
+                    entry.target_agent_id,
+                    entry.target_agent_name,
+                    entry.channel,
+                    entry.status,
+                    entry.carrier_field,
+                    entry.raw_payload,
+                    entry.sanitized_payload,
+                    1 if entry.detection_result.is_flagged else 0,
+                    1 if entry.detection_result.is_blocked else 0,
+                    entry.detection_result.risk_score,
+                    json.dumps(entry.detection_result.model_dump(mode="json")),
+                    entry.target_response,
+                    entry.target_defense_action,
+                    entry.log_hash or "",
+                    entry.created_at.isoformat(),
+                ),
+            )
+            await conn.commit()
+
+    async def get_seam_audit_logs(
+        self, target_agent_id: Optional[str] = None, limit: int = 50
+    ) -> List[SeamAuditLogEntry]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            import json
+
+            from ..models.arena import SeamAuditLogEntry, SeamDetectionResult
+
+            if target_agent_id:
+                cursor = await conn.execute(
+                    """
+                    SELECT log_id, seam_id, source_agent_id, source_agent_name, target_agent_id,
+                           target_agent_name, channel, status, carrier_field, raw_payload,
+                           sanitized_payload, is_flagged, is_blocked, risk_score, detection_json,
+                           target_response, target_defense_action, log_hash, created_at
+                    FROM seam_audit_logs WHERE target_agent_id = ? ORDER BY created_at DESC LIMIT ?;
+                    """,
+                    (target_agent_id, limit),
+                )
+            else:
+                cursor = await conn.execute(
+                    """
+                    SELECT log_id, seam_id, source_agent_id, source_agent_name, target_agent_id,
+                           target_agent_name, channel, status, carrier_field, raw_payload,
+                           sanitized_payload, is_flagged, is_blocked, risk_score, detection_json,
+                           target_response, target_defense_action, log_hash, created_at
+                    FROM seam_audit_logs ORDER BY created_at DESC LIMIT ?;
+                    """,
+                    (limit,),
+                )
+            rows = await cursor.fetchall()
+            logs = []
+            for row in rows:
+                det_raw = json.loads(row[14]) if row[14] else {}
+                det = SeamDetectionResult.model_validate(det_raw)
+                logs.append(
+                    SeamAuditLogEntry(
+                        log_id=row[0],
+                        seam_id=row[1],
+                        source_agent_id=row[2],
+                        source_agent_name=row[3],
+                        target_agent_id=row[4],
+                        target_agent_name=row[5],
+                        channel=row[6],
+                        status=row[7],
+                        carrier_field=row[8],
+                        raw_payload=row[9],
+                        sanitized_payload=row[10],
+                        detection_result=det,
+                        target_response=row[15],
+                        target_defense_action=row[16],
+                        log_hash=row[17],
+                        created_at=datetime.fromisoformat(row[18]) if row[18] else datetime.now(timezone.utc),
+                    )
+                )
+            return logs
+
 
 
 

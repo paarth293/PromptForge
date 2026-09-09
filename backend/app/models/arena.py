@@ -77,6 +77,42 @@ class SeamAttackPayload(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class SeamDetectionResult(BaseModel):
+    is_flagged: bool = False
+    is_blocked: bool = False
+    flagged_signatures: List[str] = Field(default_factory=list)
+    detected_techniques: List[str] = Field(default_factory=list)
+    risk_score: float = 0.0  # 0.0 to 1.0
+    flagged_fields: List[str] = Field(default_factory=list)
+    sanitized_payload: Optional[str] = None
+    rationale: str = ""
+
+
+class SeamAuditLogEntry(BaseModel):
+    log_id: str = Field(default_factory=lambda: f"SEAM-LOG-{uuid.uuid4().hex[:8].upper()}")
+    seam_id: str
+    source_agent_id: str
+    source_agent_name: str
+    target_agent_id: str
+    target_agent_name: str
+    channel: str = "tool_result_handoff"
+    carrier_field: str = "notes"
+    status: Literal[
+        "BLOCKED_AT_BOUNDARY",
+        "SANITIZED_AND_PASSED",
+        "UNFILTERED_COMPROMISED",
+        "UNFILTERED_DEFENDED_BY_TARGET",
+        "CLEAN_PASSED",
+    ]
+    raw_payload: str
+    sanitized_payload: Optional[str] = None
+    detection_result: SeamDetectionResult
+    target_response: Optional[str] = None
+    target_defense_action: Optional[str] = None
+    log_hash: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class SeamHandoffResult(BaseModel):
     seam_id: str = Field(default_factory=lambda: f"SEAM-{uuid.uuid4().hex[:8].upper()}")
     source_agent_id: str
@@ -93,6 +129,7 @@ class SeamHandoffResult(BaseModel):
     target_tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
     target_blocked: bool = False
     defense_action: Optional[str] = None
+    audit_log: Optional[SeamAuditLogEntry] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
