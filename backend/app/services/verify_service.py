@@ -217,8 +217,8 @@ class VerifyService:
                             case_id=f"user-gold-{idx}",
                             source="user_gold",
                             category="domain_behavior",
-                            question=qa["question"],
-                            expected_answer=qa["answer"],
+                            question=qa.get("question", ""),
+                            expected_answer=qa.get("expected_answer") or qa.get("answer", ""),
                         )
                     )
             edge_cases.extend([

@@ -30,6 +30,9 @@ from .models import (
     VerificationScorecard,
 )
 from .models.audit_import import (
+    AuditImportAndRunRequest,
+    AuditPipelineResult,
+    AuditPipelineRunRequest,
     BedrockAgentImportRequest,
     OpenAIAssistantImportRequest,
     RawPromptImportRequest,
@@ -37,6 +40,7 @@ from .models.audit_import import (
 )
 from .models.harden import HardeningLoopResult
 from .services.audit_import_service import AuditImportService
+from .services.audit_pipeline_service import AuditPipelineService
 from .services.certificate_service import CertificateService
 from .services.deployment_service import DeploymentService
 from .services.forge_service import ForgeService
@@ -668,6 +672,55 @@ async def import_universal_endpoint(
         user_gold_qa=req.user_gold_qa,
         tenant_id=tenant_id,
     )
+
+
+@app.post("/api/audit/pipeline/run/{blueprint_id}", response_model=AuditPipelineResult)
+async def run_audit_pipeline_endpoint(
+    blueprint_id: str,
+    req: AuditPipelineRunRequest = AuditPipelineRunRequest(),
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    blueprint = await repo.get_blueprint(blueprint_id)
+    if not blueprint:
+        raise HTTPException(status_code=404, detail="Blueprint not found.")
+    verify_tenant_access(blueprint.tenant_id, tenant_id)
+
+    pipeline_service = AuditPipelineService(repo=repo)
+    return await pipeline_service.run_audit_pipeline(
+        blueprint=blueprint,
+        user_gold_qa=req.user_gold_qa,
+        attacks_per_persona=req.attacks_per_persona,
+        survival_threshold=req.survival_threshold,
+        max_harden_passes=req.max_harden_passes,
+        reattack_count_per_category=req.reattack_count_per_category,
+    )
+
+
+@app.post("/api/audit/pipeline/import-and-run", response_model=AuditPipelineResult)
+async def import_and_run_audit_pipeline_endpoint(
+    req: AuditImportAndRunRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    import_service = AuditImportService(repo=repo)
+    blueprint = await import_service.import_agent(
+        format_type=req.format_type,
+        payload=req.payload,
+        user_gold_qa=req.user_gold_qa,
+        tenant_id=tenant_id,
+    )
+
+    pipeline_service = AuditPipelineService(repo=repo)
+    return await pipeline_service.run_audit_pipeline(
+        blueprint=blueprint,
+        user_gold_qa=req.user_gold_qa,
+        attacks_per_persona=req.attacks_per_persona,
+        survival_threshold=req.survival_threshold,
+        max_harden_passes=req.max_harden_passes,
+        reattack_count_per_category=req.reattack_count_per_category,
+    )
+
 
 
 if __name__ == "__main__":
