@@ -1,5 +1,7 @@
 import json
 import logging
+import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 
 from ..core.errors import BuilderPolicyViolationException
@@ -9,7 +11,14 @@ from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
-from ..models.blueprint import AgentBlueprint, FewShotConversation, FewShotMessage, Guardrail, ToolSchema
+from ..models.blueprint import (
+    AgentBlueprint,
+    FewShotConversation,
+    FewShotMessage,
+    Guardrail,
+    ProvenanceRegistryEntry,
+    ToolSchema,
+)
 from ..models.chain_outputs import (
     FewShotExamplesOutput,
     GuardrailsOutput,
@@ -306,18 +315,44 @@ class ForgeService:
                 review_required = True
                 review_flags.append(f"tool:{t.name}:unrestricted_money_transfer")
 
+        # 5c. Provenance Watermark & Registry Entry (Step 59)
+        blueprint_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc)
+        watermark = f"pf:v1:{blueprint_id[:8]}:{spec.tenant_id}:{created_at.strftime('%Y%m%d%H%M%S')}"
+        prompt_marker = f"\n\n<!-- [PromptForge Provenance: agent_id={blueprint_id} forger_id={spec.tenant_id} watermark={watermark}] -->"
+        final_system_prompt = f"{assembled_system_prompt}{prompt_marker}"
+
+        provenance_entry = ProvenanceRegistryEntry(
+            agent_id=blueprint_id,
+            blueprint_id=blueprint_id,
+            forger_id=spec.tenant_id,
+            agent_name=spec.agent_name,
+            watermark=watermark,
+            system_prompt_marker=prompt_marker.strip(),
+            registered_at=created_at,
+            provenance_hash=compute_sha256({
+                "agent_id": blueprint_id,
+                "forger_id": spec.tenant_id,
+                "watermark": watermark,
+                "spec_id": spec.spec_id,
+            }),
+        )
+
         # 6. Build Blueprint
         blueprint = AgentBlueprint(
+            blueprint_id=blueprint_id,
             spec_id=spec.spec_id,
             tenant_id=spec.tenant_id,
             agent_name=spec.agent_name,
-            system_prompt=assembled_system_prompt,
+            system_prompt=final_system_prompt,
             tools=tools,
             guardrails=guardrails,
             few_shot_examples=few_shots,
-            provenance_watermark="built-with-promptforge-v1",
+            provenance_watermark=watermark,
+            provenance_record=provenance_entry,
             review_required=review_required,
-            review_flags=review_flags
+            review_flags=review_flags,
+            created_at=created_at,
         )
 
         # 7. Compute deterministic SHA-256 hash
@@ -329,15 +364,16 @@ class ForgeService:
             "tools": [t.model_dump() for t in blueprint.tools],
             "guardrails": [g.model_dump() for g in blueprint.guardrails],
             "few_shot_examples": [f.model_dump() for f in blueprint.few_shot_examples],
-            "provenance_watermark": blueprint.provenance_watermark
+            "provenance_watermark": blueprint.provenance_watermark,
         }
         blueprint.blueprint_hash = compute_sha256(blueprint_content)
 
-        # 8. Persist to DB
+        # 8. Persist to DB and Registry
         await self.repo.save_blueprint(blueprint)
+        await self.repo.save_registry_entry(provenance_entry)
         logger.info(
             f"Assembled and persisted blueprint {blueprint.blueprint_id} "
-            f"for spec {spec.spec_id} with hash {blueprint.blueprint_hash}"
+            f"for spec {spec.spec_id} with hash {blueprint.blueprint_hash} and registry entry {provenance_entry.registry_id}"
         )
         return blueprint
 

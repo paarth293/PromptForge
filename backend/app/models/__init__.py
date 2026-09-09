@@ -1,6 +1,13 @@
 """PromptForge Core Pipeline Models"""
 from .audit import AuditEvent
-from .blueprint import AgentBlueprint, FewShotConversation, FewShotMessage, Guardrail, ToolSchema
+from .blueprint import (
+    AgentBlueprint,
+    FewShotConversation,
+    FewShotMessage,
+    Guardrail,
+    ProvenanceRegistryEntry,
+    ToolSchema,
+)
 from .certificate import BirthCertificate
 from .dossier import AgentDossier
 from .harden import HardeningLog, PatchEntry
@@ -40,6 +47,7 @@ __all__ = [
     "AgentSpec",
     "Capability",
     "AgentBlueprint",
+    "ProvenanceRegistryEntry",
     "ToolSchema",
     "Guardrail",
     "FewShotConversation",

@@ -11,6 +11,7 @@ from ..models import (
     BirthCertificate,
     HardeningLog,
     PolicyObject,
+    ProvenanceRegistryEntry,
     RedTeamReport,
     VerificationScorecard,
 )
@@ -326,3 +327,55 @@ class PipelineRepository:
             if row:
                 return AgentDossier.model_validate_json(row[0])
             return None
+
+    # Agent Provenance Registry
+    async def save_registry_entry(self, entry: ProvenanceRegistryEntry):
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA foreign_keys = ON;")
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO agent_registry (registry_id, agent_id, blueprint_id, forger_id, agent_name, watermark, data_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    entry.registry_id,
+                    entry.agent_id,
+                    entry.blueprint_id,
+                    entry.forger_id,
+                    entry.agent_name,
+                    entry.watermark,
+                    entry.model_dump_json(),
+                    entry.registered_at.isoformat(),
+                )
+            )
+            await conn.commit()
+
+    async def get_registry_entry(self, registry_id: str) -> Optional[ProvenanceRegistryEntry]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM agent_registry WHERE registry_id = ?;", (registry_id,))
+            row = await cursor.fetchone()
+            if row:
+                return ProvenanceRegistryEntry.model_validate_json(row[0])
+            return None
+
+    async def get_registry_entry_by_blueprint(self, blueprint_id: str) -> Optional[ProvenanceRegistryEntry]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM agent_registry WHERE blueprint_id = ? LIMIT 1;", (blueprint_id,))
+            row = await cursor.fetchone()
+            if row:
+                return ProvenanceRegistryEntry.model_validate_json(row[0])
+            return None
+
+    async def list_registry_entries(self, forger_id: Optional[str] = None) -> List[ProvenanceRegistryEntry]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            if forger_id:
+                cursor = await conn.execute("SELECT data_json FROM agent_registry WHERE forger_id = ? ORDER BY created_at DESC;", (forger_id,))
+            else:
+                cursor = await conn.execute("SELECT data_json FROM agent_registry ORDER BY created_at DESC;")
+            rows = await cursor.fetchall()
+            return [ProvenanceRegistryEntry.model_validate_json(row[0]) for row in rows]
+
