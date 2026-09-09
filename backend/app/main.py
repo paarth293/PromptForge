@@ -29,7 +29,14 @@ from .models import (
     RedTeamReport,
     VerificationScorecard,
 )
+from .models.audit_import import (
+    BedrockAgentImportRequest,
+    OpenAIAssistantImportRequest,
+    RawPromptImportRequest,
+    UniversalAuditImportRequest,
+)
 from .models.harden import HardeningLoopResult
+from .services.audit_import_service import AuditImportService
 from .services.certificate_service import CertificateService
 from .services.deployment_service import DeploymentService
 from .services.forge_service import ForgeService
@@ -595,8 +602,77 @@ async def deployed_agent_chat_endpoint(
     return await service.chat(blueprint_id=bp.blueprint_id, request=req)
 
 
+# =========================================================================
+# Phase 8: Mode 2: AUDIT Import Endpoints
+# =========================================================================
+
+@app.post("/api/audit/import/raw", response_model=AgentBlueprint)
+async def import_raw_prompt_endpoint(
+    req: RawPromptImportRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    import_service = AuditImportService(repo=repo)
+    return await import_service.import_raw_prompt(
+        prompt=req.prompt,
+        agent_name=req.agent_name,
+        domain=req.domain,
+        tools=req.tools,
+        user_gold_qa=req.user_gold_qa,
+        tenant_id=tenant_id,
+    )
+
+
+@app.post("/api/audit/import/openai", response_model=AgentBlueprint)
+async def import_openai_endpoint(
+    req: OpenAIAssistantImportRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    import_service = AuditImportService(repo=repo)
+    return await import_service.import_openai_gpt(
+        config=req.config,
+        agent_name=req.agent_name,
+        domain=req.domain,
+        user_gold_qa=req.user_gold_qa,
+        tenant_id=tenant_id,
+    )
+
+
+@app.post("/api/audit/import/bedrock", response_model=AgentBlueprint)
+async def import_bedrock_endpoint(
+    req: BedrockAgentImportRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    import_service = AuditImportService(repo=repo)
+    return await import_service.import_bedrock_agent(
+        config=req.config,
+        agent_name=req.agent_name,
+        domain=req.domain,
+        user_gold_qa=req.user_gold_qa,
+        tenant_id=tenant_id,
+    )
+
+
+@app.post("/api/audit/import", response_model=AgentBlueprint)
+async def import_universal_endpoint(
+    req: UniversalAuditImportRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    import_service = AuditImportService(repo=repo)
+    return await import_service.import_agent(
+        format_type=req.format_type,
+        payload=req.payload,
+        user_gold_qa=req.user_gold_qa,
+        tenant_id=tenant_id,
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend.app.main:app", host=settings.host, port=settings.port, reload=True)
+
 
 
