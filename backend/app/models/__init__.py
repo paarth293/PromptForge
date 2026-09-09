@@ -5,7 +5,15 @@ from .certificate import BirthCertificate
 from .dossier import AgentDossier
 from .harden import HardeningLog, PatchEntry
 from .playbook import AdversarialPlaybookEntry
-from .redteam import AttackerPersonaOutput, AttackPromptTurn, AttackVerdict, RedTeamReport
+from .redteam import (
+    AttackerPersonaOutput,
+    AttackPromptTurn,
+    AttackVerdict,
+    GeneratedAttackCase,
+    GeneratedAttacksBatch,
+    GeneratedAttackTurn,
+    RedTeamReport,
+)
 from .runtime import ChatMessage, ChatRequest, ChatResponse, SimulatedToolCall
 from .shield import PolicyObject
 from .spec import AgentSpec, Capability
@@ -24,6 +32,9 @@ __all__ = [
     "AttackVerdict",
     "AttackerPersonaOutput",
     "AttackPromptTurn",
+    "GeneratedAttackCase",
+    "GeneratedAttackTurn",
+    "GeneratedAttacksBatch",
     "HardeningLog",
     "PatchEntry",
     "VerificationScorecard",

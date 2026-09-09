@@ -16,6 +16,27 @@ class AttackerPersonaOutput(BaseModel):
     difficulty: str = "moderate"
     attack_prompts: List[AttackPromptTurn] = Field(default_factory=list)
 
+class GeneratedAttackTurn(BaseModel):
+    turn: int = 1
+    prompt: str
+    expected_behavior: str
+    intended_violation: str
+
+class GeneratedAttackCase(BaseModel):
+    attack_id: str = Field(default_factory=lambda: f"ATK-{uuid.uuid4().hex[:6].upper()}")
+    attacker_persona: str
+    category: str  # "injection", "extraction", "tool_abuse", "social_engineering", "multilingual"
+    attack_vector: str
+    target_surface: str = "boundaries"  # "system_prompt", "tools", "guardrails", "boundaries"
+    target_element: str = ""
+    difficulty: str = "moderate"  # "trivial", "moderate", "hard"
+    is_multi_turn: bool = False
+    turns: List[GeneratedAttackTurn] = Field(default_factory=list)
+
+class GeneratedAttacksBatch(BaseModel):
+    attacks: List[GeneratedAttackCase] = Field(default_factory=list)
+
+
 class AttackVerdict(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     category: str  # "injection", "hijack", "extraction", "boundary", "multilingual"
