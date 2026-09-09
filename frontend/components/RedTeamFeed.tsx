@@ -63,9 +63,15 @@ interface RedTeamFeedProps {
   blueprintId: string;
   agentName: string;
   onBackToChat?: () => void;
+  onProceedToHardening?: (report: RedTeamReportData) => void;
 }
 
-export default function RedTeamFeed({ blueprintId, agentName, onBackToChat }: RedTeamFeedProps) {
+export default function RedTeamFeed({
+  blueprintId,
+  agentName,
+  onBackToChat,
+  onProceedToHardening
+}: RedTeamFeedProps) {
   const [running, setRunning] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Ready to launch Red Team attack campaign.');
   const [currentStage, setCurrentStage] = useState<string>('idle');
@@ -227,6 +233,16 @@ export default function RedTeamFeed({ blueprintId, agentName, onBackToChat }: Re
             <RefreshCw className={`w-3.5 h-3.5 ${running ? 'animate-spin' : ''}`} />
             {running ? 'Attacking...' : 'Re-Run Red Team'}
           </button>
+          {onProceedToHardening && report && (
+            <button
+              onClick={() => onProceedToHardening(report)}
+              disabled={running}
+              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white shadow-lg shadow-emerald-600/20 transition"
+            >
+              <span>Hardening Loop (Stage 2.5)</span>
+              <span>→</span>
+            </button>
+          )}
         </div>
       </div>
 

@@ -17,10 +17,11 @@ import {
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
 import RedTeamFeed from '../components/RedTeamFeed';
+import HardeningLogView, { HardeningLogData } from '../components/HardeningLogView';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam';
+type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden';
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
@@ -31,6 +32,7 @@ export default function HomePage() {
   // Stored state across stages
   const [spec, setSpec] = useState<AgentSpecData | null>(null);
   const [blueprint, setBlueprint] = useState<BlueprintInfo | null>(null);
+  const [hardeningLog, setHardeningLog] = useState<HardeningLogData | null>(null);
   const [assemblySteps, setAssemblySteps] = useState<
     { name: string; chain: string; status: 'pending' | 'running' | 'done' }[]
   >([
@@ -400,6 +402,42 @@ export default function HomePage() {
               blueprintId={blueprint.blueprint_id}
               agentName={blueprint.agent_name}
               onBackToChat={() => setStage('chat')}
+              onProceedToHardening={async () => {
+                setLoading(true);
+                setError(null);
+                try {
+                  const res = await fetch(`${API_BASE_URL}/api/harden/run/${blueprint.blueprint_id}`, {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'X-Tenant-ID': 'tenant-demo'
+                    }
+                  });
+                  if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.detail || 'Hardening loop failed');
+                  }
+                  const loopResult = await res.json();
+                  setHardeningLog(loopResult.hardening_log);
+                  setStage('harden');
+                } catch (err: any) {
+                  setError(err.message || 'Hardening failed');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+            />
+          </div>
+        )}
+
+        {/* STAGE 6: Automated Guardrail Hardening Log View */}
+        {stage === 'harden' && blueprint && hardeningLog && (
+          <div className="w-full animate-in fade-in duration-300">
+            <HardeningLogView
+              hardeningLog={hardeningLog}
+              agentName={blueprint.agent_name}
+              onBackToRedTeam={() => setStage('redteam')}
+              onChatWithHardenedAgent={() => setStage('chat')}
             />
           </div>
         )}

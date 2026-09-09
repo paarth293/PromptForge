@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,8 +17,17 @@ from .core.logging import setup_logging
 from .core.tenancy import get_current_tenant_id, verify_tenant_access
 from .db.repository import PipelineRepository
 from .db.session import init_db
-from .models import AgentBlueprint, AgentSpec, ChatRequest, ChatResponse, RedTeamReport
+from .models import (
+    AgentBlueprint,
+    AgentSpec,
+    ChatRequest,
+    ChatResponse,
+    HardeningLog,
+    RedTeamReport,
+)
+from .models.harden import HardeningLoopResult
 from .services.forge_service import ForgeService
+from .services.harden_service import HardenService
 from .services.redteam_service import RedTeamService
 from .services.runtime_service import AgentRuntimeService
 
@@ -257,6 +267,73 @@ async def get_latest_blueprint_report_endpoint(
         raise HTTPException(status_code=404, detail="No RedTeamReport found for this blueprint")
     verify_tenant_access(report.tenant_id, tenant_id)
     return report
+
+
+# Harden Endpoints
+@app.post("/api/harden/run/{blueprint_id}", response_model=HardeningLoopResult)
+async def run_hardening_endpoint(
+    blueprint_id: str,
+    survival_threshold: float = 0.85,
+    max_passes: int = 2,
+    reattack_count_per_category: int = 4,
+    generator_model: str = "gpt-4o",
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    report = await repo.get_latest_redteam_report_by_blueprint(blueprint_id)
+    if not report:
+        raise HTTPException(status_code=400, detail="No RedTeamReport found for this blueprint. Red teaming must precede hardening.")
+
+    service = HardenService(repo=repo)
+    result = await service.run_targeted_hardening_loop(
+        blueprint=bp,
+        initial_report=report,
+        survival_threshold=survival_threshold,
+        max_passes=max_passes,
+        reattack_count_per_category=reattack_count_per_category,
+        generator_model=generator_model
+    )
+    return result
+
+
+@app.get("/api/harden/logs/{log_id}", response_model=HardeningLog)
+async def get_hardening_log_endpoint(
+    log_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    log = await repo.get_hardening_log(log_id)
+    if not log:
+        raise HTTPException(status_code=404, detail="Hardening log not found")
+    return log
+
+
+@app.get("/api/harden/logs/blueprint/{blueprint_id}", response_model=List[HardeningLog])
+async def list_hardening_logs_for_blueprint_endpoint(
+    blueprint_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    return await repo.list_hardening_logs_for_blueprint(blueprint_id)
+
+
+@app.get("/api/harden/logs/{log_id}/formatted")
+async def get_formatted_hardening_log_endpoint(
+    log_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    log = await repo.get_hardening_log(log_id)
+    if not log:
+        raise HTTPException(status_code=404, detail="Hardening log not found")
+    service = HardenService(repo=repo)
+    text = service.format_human_readable_log(log)
+    return {"log_id": log.log_id, "formatted_log": text}
 
 
 if __name__ == "__main__":

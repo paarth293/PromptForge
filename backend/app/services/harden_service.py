@@ -413,3 +413,58 @@ class HardenService:
             pass_records=pass_records,
             hardening_log=hardening_log,
         )
+
+    def format_human_readable_log(self, log: HardeningLog) -> str:
+        """
+        Renders a human-readable summary of the hardening log matching the PromptForge spec.
+        Example format:
+        Survival 14/20 (70%) → 18/20 (90%) after 1 hardening pass
+          Patch 1: added tool-policy rule "refund > $500 → require_manager_approval"
+          Patch 2: tightened system prompt §5 (role-hijack defense)
+        """
+        lines = []
+        lines.append("=" * 72)
+        lines.append("PROMPTFORGE HARDENING REPORT")
+        lines.append("=" * 72)
+        lines.append(f"Initial Blueprint  : {log.initial_blueprint_id}")
+        lines.append(f"Hardened Blueprint : {log.hardened_blueprint_id}")
+        lines.append(
+            f"Survival Progression: {log.initial_survival_rate:.1%} → {log.final_survival_rate:.1%} "
+            f"after {log.pass_count} hardening pass{'es' if log.pass_count != 1 else ''}"
+        )
+        if log.log_hash:
+            lines.append(f"Integrity Hash     : {log.log_hash}")
+        lines.append(f"Timestamp (UTC)    : {log.created_at.isoformat()}")
+        lines.append("-" * 72)
+
+        lines.append(f"APPLIED SURGICAL PATCHES ({len(log.applied_patches)}):")
+        if not log.applied_patches:
+            lines.append("  (No patches applied — agent met security threshold without modification)")
+        else:
+            for i, p in enumerate(log.applied_patches, start=1):
+                target_str = f"[{p.target.upper()}]"
+                if p.target_name:
+                    target_str += f" {p.target_name}"
+                lines.append(f"  Patch {i} ({p.patch_id}): {target_str}")
+                lines.append(f"    Category  : {p.category}")
+                lines.append(f"    Rationale : {p.rationale}")
+                diff_preview = p.diff.strip().splitlines()
+                if diff_preview:
+                    lines.append("    Diff:")
+                    for dl in diff_preview[:5]:
+                        lines.append(f"      {dl}")
+                    if len(diff_preview) > 5:
+                        lines.append(f"      ... ({len(diff_preview) - 5} more lines)")
+
+        if log.pass_records:
+            lines.append("-" * 72)
+            lines.append("PASS BREAKDOWN:")
+            for pr in log.pass_records:
+                lines.append(
+                    f"  Pass {pr.pass_number}: Targeted [{', '.join(pr.categories_targeted)}] | "
+                    f"Survival: {pr.survival_rate_before:.1%} → {pr.survival_rate_after:.1%} "
+                    f"({pr.sessions_run} sessions, {len(pr.patches_applied)} patches)"
+                )
+        lines.append("=" * 72)
+        return "\n".join(lines)
+
