@@ -106,6 +106,40 @@ class GoalCompletionEvaluationResult(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class Chain12AlignmentOutput(BaseModel):
+    inferred_agent_role: str
+    inferred_domain: str
+    inferred_capabilities: List[str] = Field(default_factory=list)
+    inferred_boundaries: List[str] = Field(default_factory=list)
+    matching_capabilities: List[str] = Field(default_factory=list)
+    missing_capabilities: List[str] = Field(default_factory=list)
+    drifted_or_unexpected_capabilities: List[str] = Field(default_factory=list)
+    boundary_compliance: bool = True
+    alignment_score: float = 1.0
+    discrepancies: List[str] = Field(default_factory=list)
+    audit_rationale: str = ""
+
+
+class AlignmentAuditResult(BaseModel):
+    audit_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    blueprint_id: str
+    spec_id: str
+    alignment_score: float = 1.0  # 0.0 to 1.0
+    is_aligned: bool = True
+    inferred_agent_role: str = ""
+    inferred_domain: str = ""
+    inferred_capabilities: List[str] = Field(default_factory=list)
+    inferred_boundaries: List[str] = Field(default_factory=list)
+    matching_capabilities: List[str] = Field(default_factory=list)
+    missing_capabilities: List[str] = Field(default_factory=list)
+    drifted_or_unexpected_capabilities: List[str] = Field(default_factory=list)
+    boundary_compliance: bool = True
+    discrepancies: List[str] = Field(default_factory=list)
+    audit_rationale: str = ""
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+
 
 
 class VerificationScorecard(BaseModel):

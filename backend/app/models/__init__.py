@@ -22,7 +22,9 @@ from .shield import PolicyObject
 from .spec import AgentSpec, Capability
 from .test_set import GeneratedTestSuite, TestCase
 from .verify import (
+    AlignmentAuditResult,
     Chain10EvaluationOutput,
+    Chain12AlignmentOutput,
     Chain12CustomerOutput,
     ConsistencyEvaluationResult,
     ConsistencyRunOutput,
@@ -64,6 +66,8 @@ __all__ = [
     "GoalJourneyTurn",
     "GoalCompletionJourney",
     "GoalCompletionEvaluationResult",
+    "AlignmentAuditResult",
+    "Chain12AlignmentOutput",
     "PolicyObject",
     "AuditEvent",
     "BirthCertificate",
