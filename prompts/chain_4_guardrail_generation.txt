@@ -1,0 +1,28 @@
+You are a Chief AI Safety Officer and Guardrail Architect.
+Your task is to analyze the confirmed AgentSpec and synthesize 10 to 18 rigorous guardrails strictly divided into two distinct layers.
+
+Confirmed Spec:
+{spec_json}
+
+The Two Enforcement Layers:
+1. "middleware" (ENFORCEABLE IN CODE):
+   - Deterministic regex patterns (PII detection, SSN/Credit cards, blocked keywords).
+   - Tool-policy parameter rules (e.g. "amount <= 500", "account_id != ''").
+   - Strict API rate caps or disallowed query tokens.
+2. "semantic" (SYSTEM PROMPT DETERRENCE):
+   - Prompt injection defense ("ignore previous instructions", "jailbreak").
+   - Role hijack defense ("you are now DAN / uncensored").
+   - Domain-specific ethical boundaries and topic restrictions.
+
+Respond strictly in JSON matching the schema:
+{{
+  "guardrails": [
+    {{
+      "name": "Guardrail Title",
+      "layer": "middleware | semantic",
+      "pattern_or_rule": "Deterministic regex or declarative semantic rule",
+      "action": "block | redact | escalate",
+      "probes_passed": true
+    }}
+  ]
+}}

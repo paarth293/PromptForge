@@ -2,12 +2,13 @@ import json
 import logging
 from typing import List, Optional
 
+from ..core.guardrail_prober import validate_guardrail_with_probes
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
-from ..models.blueprint import ToolSchema
-from ..models.chain_outputs import SystemPromptOutput, ToolSchemaOutput
+from ..models.blueprint import Guardrail, ToolSchema
+from ..models.chain_outputs import GuardrailsOutput, SystemPromptOutput, ToolSchemaOutput
 from ..models.spec import AgentSpec
 from ..models.test_set import GeneratedTestSuite, TestCase
 
@@ -151,3 +152,41 @@ class ForgeService:
         tools = [ToolSchema.model_validate(t) for t in output.tools]
         logger.info(f"Generated {len(tools)} tools for spec {spec.spec_id}.")
         return tools
+
+    async def generate_guardrails(
+        self,
+        spec: AgentSpec,
+        model: str = "gpt-4o"
+    ) -> List[Guardrail]:
+        """
+        Executes Chain 4: Generates 10–18 guardrails in two layers (middleware & semantic)
+        and validates every guardrail with 3 positive + 3 negative unit probes.
+        """
+        spec_json = spec.model_dump_json(indent=2)
+        prompt = self.registry.render(
+            "chain_4_guardrail_generation",
+            spec_json=spec_json
+        )
+        output = await execute_chain_with_retry(
+            client=self.llm,
+            prompt=prompt,
+            schema_class=GuardrailsOutput,
+            model=model
+        )
+        validated_guardrails: List[Guardrail] = []
+        for g_data in output.guardrails:
+            rail = Guardrail(
+                name=g_data.name,
+                layer=g_data.layer,
+                pattern_or_rule=g_data.pattern_or_rule,
+                action=g_data.action
+            )
+            passed, logs = validate_guardrail_with_probes(rail)
+            if passed:
+                rail.probes_passed = True
+                validated_guardrails.append(rail)
+            else:
+                logger.warning(f"Guardrail '{rail.name}' rejected by probe validation: {logs}")
+
+        logger.info(f"Generated and validated {len(validated_guardrails)} guardrails for spec {spec.spec_id}.")
+        return validated_guardrails
