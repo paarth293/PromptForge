@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
+from ..core.quality_gate import AttackQualityGate, QualityGateResult
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
 from ..models.blueprint import AgentBlueprint
@@ -27,12 +28,15 @@ class RedTeamService:
         self,
         repo: Optional[PipelineRepository] = None,
         llm: Optional[LLMClient] = None,
-        seed_service: Optional[SeedCorpusService] = None
+        seed_service: Optional[SeedCorpusService] = None,
+        quality_gate: Optional[AttackQualityGate] = None
     ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
         self.registry = get_prompt_registry()
         self.seed_service = seed_service or get_seed_corpus_service()
+        self.quality_gate = quality_gate or AttackQualityGate()
+
 
     async def generate_attacks_for_persona(
         self,
@@ -124,3 +128,31 @@ class RedTeamService:
             f"for blueprint {blueprint.blueprint_id}."
         )
         return campaign_attacks
+
+    def apply_quality_gate(
+        self,
+        blueprint: AgentBlueprint,
+        attacks: List[GeneratedAttackCase]
+    ) -> QualityGateResult:
+        """
+        Applies target surface verification, embedding deduplication, and difficulty mix calibration.
+        """
+        return self.quality_gate.evaluate_batch(blueprint, attacks)
+
+    async def generate_gated_campaign(
+        self,
+        blueprint: AgentBlueprint,
+        attacks_per_persona: int = 4,
+        model: str = "gpt-4o"
+    ) -> QualityGateResult:
+        """
+        Generates a comprehensive campaign across all 5 personas and filters
+        all attacks through the Attack Quality Gate, guaranteeing diversity and difficulty mix.
+        """
+        raw_attacks = await self.generate_full_campaign(
+            blueprint=blueprint,
+            attacks_per_persona=attacks_per_persona,
+            model=model
+        )
+        return self.apply_quality_gate(blueprint, raw_attacks)
+
