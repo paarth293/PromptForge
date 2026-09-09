@@ -1,4 +1,13 @@
 """PromptForge Core Pipeline Models"""
+from .arena import (
+    HOSTILE_PERSONA_DEFINITIONS,
+    ArenaPairingRequest,
+    ArenaPairingTranscript,
+    ArenaRunResult,
+    ArenaTurn,
+    HostilePersonaType,
+    SeamAttackPayload,
+)
 from .audit import AuditEvent
 from .blueprint import (
     AgentBlueprint,
@@ -122,5 +131,12 @@ __all__ = [
     "PopulationGeneratorResult",
     "DeepForgeRunRequest",
     "PROMPT_STRATEGIES",
+    "HOSTILE_PERSONA_DEFINITIONS",
+    "HostilePersonaType",
+    "SeamAttackPayload",
+    "ArenaTurn",
+    "ArenaPairingTranscript",
+    "ArenaRunResult",
+    "ArenaPairingRequest",
 ]
 
