@@ -82,6 +82,30 @@ class PipelineRepository:
             rows = await cursor.fetchall()
             return [AgentBlueprint.model_validate_json(row[0]) for row in rows]
 
+    async def get_blueprint_history(self, spec_id: str) -> List[AgentBlueprint]:
+        """Retrieves all versions of blueprints for a given spec in chronological order."""
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT data_json FROM blueprints WHERE spec_id = ? ORDER BY version ASC;",
+                (spec_id,)
+            )
+            rows = await cursor.fetchall()
+            return [AgentBlueprint.model_validate_json(row[0]) for row in rows]
+
+    async def get_latest_blueprint_by_spec(self, spec_id: str) -> Optional[AgentBlueprint]:
+        """Retrieves the most recent blueprint version for a spec."""
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute(
+                "SELECT data_json FROM blueprints WHERE spec_id = ? ORDER BY version DESC LIMIT 1;",
+                (spec_id,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                return AgentBlueprint.model_validate_json(row[0])
+            return None
+
     # RedTeamReport
     async def save_redteam_report(self, report: RedTeamReport):
         async with self._connect() as conn:
