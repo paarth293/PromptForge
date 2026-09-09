@@ -3,10 +3,12 @@ import re
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
+from ..core.policy_middleware import PolicyEnforcementMiddleware, get_policy_middleware
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, LLMMessage, get_llm_client
 from ..models.blueprint import AgentBlueprint, ToolSchema
 from ..models.runtime import ChatRequest, ChatResponse, SimulatedToolCall
+from ..models.shield import PolicyObject
 
 logger = logging.getLogger("promptforge.services.runtime")
 
@@ -18,9 +20,15 @@ class AgentRuntimeService:
     and returns compliant assistant responses.
     """
 
-    def __init__(self, repo: Optional[PipelineRepository] = None, llm: Optional[LLMClient] = None):
+    def __init__(
+        self,
+        repo: Optional[PipelineRepository] = None,
+        llm: Optional[LLMClient] = None,
+        policy_middleware: Optional[PolicyEnforcementMiddleware] = None
+    ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
+        self.policy_middleware = policy_middleware or get_policy_middleware()
 
     def check_middleware_guardrails(
         self,
@@ -73,10 +81,12 @@ class AgentRuntimeService:
     def simulate_tool_execution(
         self,
         tool: ToolSchema,
-        message: str
+        message: str,
+        policy: Optional[PolicyObject] = None
     ) -> SimulatedToolCall:
         """
         Simulates function-calling execution with realistic, deterministic outputs.
+        Enforces deterministic tool-policy rules at the middleware layer.
         """
         tool_name = tool.name.lower()
         parameters: Dict[str, Any] = {}
@@ -98,12 +108,40 @@ class AgentRuntimeService:
             amount_match = re.search(r"\$?(\d+(?:\.\d+)?)", message)
             amount = float(amount_match.group(1)) if amount_match else 49.99
             parameters = {"amount": amount, "order_id": "ORD-9821"}
+
+            # Check deterministic policy middleware
+            if policy:
+                policy_res = self.policy_middleware.check_tool_policy(policy, tool.name, parameters)
+                if not policy_res.allowed:
+                    return SimulatedToolCall(
+                        tool_name=tool.name,
+                        parameters=parameters,
+                        output={
+                            "success": False,
+                            "blocked": True,
+                            "middleware_blocked": True,
+                            "error": policy_res.blocked_reason,
+                            "escalation": True,
+                            "escalation_queue": policy_res.escalation_queue
+                        },
+                        middleware_blocked=True,
+                        blocked_reason=policy_res.blocked_reason
+                    )
+
             if amount > 500:
-                output = {
-                    "success": False,
-                    "error": f"Refund amount ${amount} exceeds automated authority limit of $500. Escalating to human manager.",
-                    "escalation": True
-                }
+                return SimulatedToolCall(
+                    tool_name=tool.name,
+                    parameters=parameters,
+                    output={
+                        "success": False,
+                        "blocked": True,
+                        "middleware_blocked": True,
+                        "error": f"Refund amount ${amount} exceeds automated authority limit of $500. Escalating to human manager.",
+                        "escalation": True
+                    },
+                    middleware_blocked=True,
+                    blocked_reason=f"Refund amount ${amount} exceeds automated limit of $500"
+                )
             else:
                 output = {
                     "success": True,
@@ -138,7 +176,8 @@ class AgentRuntimeService:
         return SimulatedToolCall(
             tool_name=tool.name,
             parameters=parameters,
-            output=output
+            output=output,
+            middleware_blocked=False
         )
 
     def detect_tool_invocation_intent(
@@ -182,6 +221,21 @@ class AgentRuntimeService:
         session_id = request.session_id or str(uuid.uuid4())
         user_text = request.message
 
+        # Retrieve policy if available for this agent
+        policy = await self.repo.get_policy_by_spec(blueprint.spec_id)
+
+        # 0. Deterministic Rate Limit Middleware
+        if policy:
+            rate_res = self.policy_middleware.check_rate_limit(policy, client_id=session_id)
+            if not rate_res.allowed:
+                return ChatResponse(
+                    session_id=session_id,
+                    response=rate_res.response_override or "Rate limit exceeded. Please try again shortly.",
+                    tool_calls=[],
+                    blocked=True,
+                    policy_triggered=rate_res.policy_rule
+                )
+
         # 1. Deterministic Middleware Guardrail Enforcement
         is_blocked, sanitized_text, triggered_rail = self.check_middleware_guardrails(blueprint, user_text)
         if is_blocked:
@@ -193,13 +247,36 @@ class AgentRuntimeService:
                 guardrail_triggered=triggered_rail
             )
 
+        # 1b. Deterministic Topic Blocklist Middleware
+        if policy:
+            topic_res = self.policy_middleware.check_topic_blocklist(policy, sanitized_text)
+            if not topic_res.allowed:
+                return ChatResponse(
+                    session_id=session_id,
+                    response=topic_res.response_override or f"I cannot assist with this topic: {topic_res.blocked_reason}",
+                    tool_calls=[],
+                    blocked=True,
+                    policy_triggered=topic_res.policy_rule
+                )
+
         # 2. Check for tool invocation
         tool_calls: List[SimulatedToolCall] = []
         invoked_tool = self.detect_tool_invocation_intent(blueprint, sanitized_text)
         tool_context_str = ""
         if invoked_tool:
-            tool_call = self.simulate_tool_execution(invoked_tool, sanitized_text)
+            tool_call = self.simulate_tool_execution(invoked_tool, sanitized_text, policy=policy)
             tool_calls.append(tool_call)
+
+            # Check if tool was blocked at middleware layer
+            if tool_call.middleware_blocked:
+                return ChatResponse(
+                    session_id=session_id,
+                    response=f"Tool execution blocked by deterministic policy middleware: {tool_call.blocked_reason}. An escalation record has been dispatched.",
+                    tool_calls=tool_calls,
+                    blocked=True,
+                    policy_triggered="tool_policy_violation"
+                )
+
             tool_context_str = f"\n[Simulated Tool Execution: {tool_call.tool_name}({tool_call.parameters}) -> {tool_call.output}]"
 
         # 3. Formulate Prompt and LLM Conversation

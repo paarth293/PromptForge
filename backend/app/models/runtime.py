@@ -11,6 +11,8 @@ class SimulatedToolCall(BaseModel):
     tool_name: str
     parameters: Dict[str, Any] = Field(default_factory=dict)
     output: Dict[str, Any] = Field(default_factory=dict)
+    middleware_blocked: bool = False
+    blocked_reason: Optional[str] = None
 
 class ChatRequest(BaseModel):
     message: str
@@ -23,3 +25,4 @@ class ChatResponse(BaseModel):
     tool_calls: List[SimulatedToolCall] = Field(default_factory=list)
     blocked: bool = False
     guardrail_triggered: Optional[str] = None
+    policy_triggered: Optional[str] = None
