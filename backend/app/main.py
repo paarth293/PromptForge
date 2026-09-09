@@ -1,4 +1,6 @@
-from fastapi import FastAPI, Request
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
@@ -9,13 +11,23 @@ from .core.errors import (
     promptforge_exception_handler,
 )
 from .core.logging import setup_logging
+from .core.tenancy import get_current_tenant_id, verify_tenant_access
+from .db.repository import PipelineRepository
+from .db.session import init_db
+from .models import AgentBlueprint, AgentSpec
 
 setup_logging()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
 
 app = FastAPI(
     title="PromptForge Backend API",
     description="The Self-Hardening Forge for AI Agents — Backend API",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 app.add_middleware(
@@ -50,6 +62,39 @@ async def health_check():
 async def test_error_endpoint():
     """Forces an error to test the standardized error shape."""
     raise ValidationException("Forced test validation error", details={"field": "test_input"})
+
+# Tenant Scoped Endpoints
+@app.post("/api/specs")
+async def create_spec_endpoint(
+    spec: AgentSpec,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    spec.tenant_id = tenant_id
+    repo = PipelineRepository()
+    await repo.save_spec(spec)
+    return {"success": True, "spec_id": spec.spec_id, "tenant_id": spec.tenant_id}
+
+@app.post("/api/blueprints")
+async def create_blueprint_endpoint(
+    blueprint: AgentBlueprint,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    blueprint.tenant_id = tenant_id
+    repo = PipelineRepository()
+    await repo.save_blueprint(blueprint)
+    return {"success": True, "blueprint_id": blueprint.blueprint_id, "tenant_id": blueprint.tenant_id}
+
+@app.get("/api/blueprints/{blueprint_id}")
+async def get_blueprint_endpoint(
+    blueprint_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+    return bp
 
 if __name__ == "__main__":
     import uvicorn
