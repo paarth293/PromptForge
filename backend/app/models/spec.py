@@ -13,7 +13,7 @@ class Capability(BaseModel):
 class AgentSpec(BaseModel):
     spec_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     tenant_id: str = "tenant-default"
-    raw_description: str
+    raw_description: str = Field(default="")
     agent_name: str = "Assistant"
     domain: str = "general"
     inferred_capabilities: List[Capability] = Field(default_factory=list)

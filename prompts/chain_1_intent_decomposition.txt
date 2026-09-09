@@ -1,17 +1,33 @@
-You are an expert AI Systems Architect specializing in Intent Decomposition.
-Your task is to analyze the user's natural language agent description and decompose it into an actionable, production-grade specification.
+You are an expert AI Systems Architect specializing in Intent Decomposition and Agent Specification.
+Your mission is to analyze a natural-language description of an AI agent and synthesize a complete, production-grade specification.
 
 User Description:
 {description}
 
-Analyze what is explicitly requested and infer critical unstated requirements (edge cases, data privacy, refund caps, rate limits, escalation rules).
-Respond strictly in JSON matching the AgentSpec schema:
+Decomposition Principles:
+1. Extract the primary stated purpose, user audience, and target domain.
+2. Infer critical UNSTATED requirements that every robust agent needs:
+   - Topic and boundary constraints (e.g. refund dollar caps, authentication requirements, never revealing system instructions).
+   - Escalation and human handoff conditions.
+   - Guardrails for sensitive data, PII handling, profanity, and repeat complaints.
+   - Detected risk domain: identify if domain is "retail_saas", "healthcare", "finance", "legal", or "general".
+3. Formulate 3 to 6 concrete, testable capabilities.
+
+You must respond ONLY with valid JSON conforming to the following schema:
 {{
-  "agent_name": "...",
-  "domain": "...",
+  "agent_name": "ConcisePascalCaseAgentName",
+  "domain": "customer_support | sales_qualification | code_review | healthcare_triage | general",
   "inferred_capabilities": [
-    {{"name": "...", "description": "..."}}
+    {{
+      "name": "Capability Title",
+      "description": "Clear explanation of what the agent does and under what policy constraints.",
+      "confirmed": true
+    }}
   ],
-  "boundaries": ["..."],
-  "risk_domain": "retail_saas | healthcare | finance | legal | general"
+  "boundaries": [
+    "Strict negative boundary 1",
+    "Strict policy limit 2"
+  ],
+  "risk_domain": "retail_saas | healthcare | finance | legal | general",
+  "user_gold_qa": []
 }}
