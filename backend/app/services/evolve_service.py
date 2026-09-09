@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -15,6 +16,8 @@ from ..models.evolve import (
     PROMPT_STRATEGIES,
     CrossoverRecombinationOutput,
     EvolveCandidate,
+    EvolveGenerationRecord,
+    EvolveLineageLog,
     PopulationGeneratorResult,
 )
 from ..models.spec import AgentSpec
@@ -542,6 +545,201 @@ class EvolveService:
             f"with {len(patch_output.patches)} surgical patches."
         )
         return mutated_candidate, mutated_bp
+
+    async def run_deep_forge(
+        self,
+        spec: AgentSpec,
+        population_size: int = 6,
+        generations_count: int = 2,
+        attacks_per_candidate: int = 4,
+        cached_demo_preferred: bool = False,
+        time_limit_seconds: float = 180.0,
+        model: str = "gpt-4o",
+    ) -> EvolveLineageLog:
+        """
+        Step 82: Generation loop + lineage log:
+        Executes the Deep Forge evolutionary loop:
+        1. Population (Gen 0) -> Fitness evaluation
+        2. Select top 2 fittest candidates
+        3. Crossover & mutation operators -> Breed Gen 1..N
+        4. Repeat across generations under hard time & cost limits
+        5. Champion agent selection and assembly of tamper-evident EvolveLineageLog.
+        """
+        start_time = time.time()
+        now = datetime.now(timezone.utc)
+
+        # 0. Check for cached demo result if requested
+        if cached_demo_preferred:
+            existing = await self.repo.get_latest_lineage_log_by_spec(spec.spec_id)
+            if existing:
+                logger.info(
+                    f"Returning existing cached Deep Forge lineage log {existing.lineage_id} for spec {spec.spec_id}"
+                )
+                return existing
+
+        logger.info(
+            f"Starting Deep Forge for spec {spec.spec_id} ({spec.agent_name}): "
+            f"pop_size={population_size}, gens={generations_count}, attacks_per_cand={attacks_per_candidate}"
+        )
+
+        # 1. Gen 0: Spawn initial diverse population
+        pop_res = await self.generate_initial_population(
+            spec=spec,
+            population_size=population_size,
+            model=model,
+        )
+        blueprints_map: Dict[str, AgentBlueprint] = {bp.blueprint_id: bp for bp in pop_res.blueprints}
+
+        # Evaluate Gen 0 candidates
+        ranked_gen_0 = await self.evaluate_population_fitness(
+            candidates=pop_res.candidates,
+            spec=spec,
+            blueprints=blueprints_map,
+            attacks_per_candidate=attacks_per_candidate,
+        )
+
+        avg_fit_0 = sum((c.fitness_score or 0.0) for c in ranked_gen_0) / max(1, len(ranked_gen_0))
+        gen_0_record = EvolveGenerationRecord(
+            generation=0,
+            candidates=ranked_gen_0,
+            best_candidate_id=ranked_gen_0[0].candidate_id,
+            best_fitness=ranked_gen_0[0].fitness_score,
+            average_fitness=round(avg_fit_0, 2),
+        )
+        generation_records: List[EvolveGenerationRecord] = [gen_0_record]
+        all_evaluated_candidates: List[EvolveCandidate] = list(ranked_gen_0)
+
+        # 2. Loop for subsequent generations
+        for gen_idx in range(1, generations_count):
+            if (time.time() - start_time) > time_limit_seconds:
+                logger.warning(
+                    f"Deep Forge reached time cap of {time_limit_seconds}s at generation {gen_idx}. Terminating early."
+                )
+                break
+
+            prev_ranked = generation_records[-1].candidates
+            parent_a = prev_ranked[0]
+            parent_b = prev_ranked[1] if len(prev_ranked) > 1 else prev_ranked[0]
+
+            gen_candidates: List[EvolveCandidate] = []
+
+            # 2a. Recombination (Crossover)
+            offspring_cross_1, bp_cross_1 = await self.perform_crossover(
+                parent_a=parent_a,
+                parent_b=parent_b,
+                spec=spec,
+                generation=gen_idx,
+                model=model,
+                base_blueprint=blueprints_map.get(parent_a.blueprint_id),
+            )
+            blueprints_map[bp_cross_1.blueprint_id] = bp_cross_1
+            gen_candidates.append(offspring_cross_1)
+
+            offspring_cross_2, bp_cross_2 = await self.perform_crossover(
+                parent_a=parent_b,
+                parent_b=parent_a,
+                spec=spec,
+                generation=gen_idx,
+                model=model,
+                base_blueprint=blueprints_map.get(parent_b.blueprint_id),
+            )
+            blueprints_map[bp_cross_2.blueprint_id] = bp_cross_2
+            gen_candidates.append(offspring_cross_2)
+
+            # 2b. Mutation via surgical patcher
+            offspring_mut_1, bp_mut_1 = await self.perform_mutation(
+                candidate=parent_a,
+                spec=spec,
+                generation=gen_idx,
+                model=model,
+                base_blueprint=blueprints_map.get(parent_a.blueprint_id),
+            )
+            blueprints_map[bp_mut_1.blueprint_id] = bp_mut_1
+            gen_candidates.append(offspring_mut_1)
+
+            offspring_mut_2, bp_mut_2 = await self.perform_mutation(
+                candidate=parent_b,
+                spec=spec,
+                generation=gen_idx,
+                model=model,
+                base_blueprint=blueprints_map.get(parent_b.blueprint_id),
+            )
+            blueprints_map[bp_mut_2.blueprint_id] = bp_mut_2
+            gen_candidates.append(offspring_mut_2)
+
+            # 2c. Elitism: promote top candidate from parent generation
+            elite_candidate = parent_a.model_copy(
+                update={
+                    "candidate_id": f"CAND-G{gen_idx}-ELITE-{uuid.uuid4().hex[:6].upper()}",
+                    "generation": gen_idx,
+                    "mutation_type": "elitism",
+                    "mutation_details": f"Preserved as elite champion from generation {gen_idx-1}",
+                }
+            )
+            gen_candidates.append(elite_candidate)
+
+            # 2d. Evaluate fitness of current generation
+            ranked_gen = await self.evaluate_population_fitness(
+                candidates=gen_candidates,
+                spec=spec,
+                blueprints=blueprints_map,
+                attacks_per_candidate=attacks_per_candidate,
+            )
+
+            avg_fit = sum((c.fitness_score or 0.0) for c in ranked_gen) / max(1, len(ranked_gen))
+            gen_record = EvolveGenerationRecord(
+                generation=gen_idx,
+                candidates=ranked_gen,
+                best_candidate_id=ranked_gen[0].candidate_id,
+                best_fitness=ranked_gen[0].fitness_score,
+                average_fitness=round(avg_fit, 2),
+            )
+            generation_records.append(gen_record)
+            all_evaluated_candidates.extend(ranked_gen)
+
+        # 3. Champion Selection across all generations
+        champion = max(all_evaluated_candidates, key=lambda c: (c.fitness_score or 0.0))
+        champ_bp = blueprints_map.get(champion.blueprint_id)
+        if not champ_bp:
+            champ_bp = await self.repo.get_blueprint(champion.blueprint_id)
+
+        if champ_bp:
+            champ_bp = champ_bp.model_copy(
+                update={
+                    "agent_name": f"{spec.agent_name} [Deep Forge Champion]",
+                    "version": (champ_bp.version or 1) + 1,
+                    "created_at": datetime.now(timezone.utc),
+                }
+            )
+            champ_bp.blueprint_hash = compute_sha256(champ_bp.model_dump(mode="json"))
+            await self.repo.save_blueprint(champ_bp)
+
+        elapsed_time = round(time.time() - start_time, 2)
+        lineage_id = f"LIN-{spec.spec_id[-8:]}-{uuid.uuid4().hex[:6].upper()}"
+
+        lineage_log = EvolveLineageLog(
+            lineage_id=lineage_id,
+            spec_id=spec.spec_id,
+            domain=spec.domain,
+            generations=generation_records,
+            champion_candidate=champion,
+            champion_blueprint_id=champion.blueprint_id,
+            total_candidates_evaluated=len(all_evaluated_candidates),
+            is_cached_demo_run=cached_demo_preferred,
+            execution_time_seconds=elapsed_time,
+            created_at=now,
+        )
+
+        canonical_dump = lineage_log.model_dump_json(exclude={"log_hash"})
+        lineage_log.log_hash = compute_sha256(canonical_dump)
+
+        await self.repo.save_evolve_lineage_log(lineage_log)
+        logger.info(
+            f"Deep Forge completed in {elapsed_time}s. Champion: {champion.candidate_id} "
+            f"Fitness: {champion.fitness_score}/100. Lineage: {lineage_id}"
+        )
+        return lineage_log
+
 
 
 

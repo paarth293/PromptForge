@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from typing import List
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -24,7 +24,9 @@ from .models import (
     CertificateVerificationResult,
     ChatRequest,
     ChatResponse,
+    DeepForgeRunRequest,
     DeploymentPackage,
+    EvolveLineageLog,
     HardeningLog,
     RedTeamReport,
     VerificationScorecard,
@@ -52,6 +54,7 @@ from .services.audit_import_service import AuditImportService
 from .services.audit_pipeline_service import AuditPipelineService
 from .services.certificate_service import CertificateService
 from .services.deployment_service import DeploymentService
+from .services.evolve_service import EvolveService
 from .services.forge_service import ForgeService
 from .services.harden_service import HardenService
 from .services.monitor_service import MonitorService
@@ -824,6 +827,67 @@ async def review_monitor_alert_endpoint(
     )
 
 
+# --- Phase 10: EVOLVE (Deep Forge) Endpoints ---
+
+@app.post("/api/evolve/run")
+async def run_deep_forge_endpoint(
+    req: DeepForgeRunRequest,
+    background_tasks: BackgroundTasks,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    spec = await repo.get_spec(req.spec_id)
+    if not spec:
+        raise HTTPException(status_code=404, detail=f"Spec {req.spec_id} not found")
+
+    evolve_service = EvolveService(repo=repo)
+
+    if req.is_background:
+        background_tasks.add_task(
+            evolve_service.run_deep_forge,
+            spec=spec,
+            population_size=req.population_size,
+            generations_count=req.generations_count,
+            attacks_per_candidate=req.attacks_per_candidate,
+            cached_demo_preferred=req.cached_demo_preferred,
+        )
+        return {
+            "status": "queued",
+            "message": "Deep Forge evolution started in background",
+            "spec_id": req.spec_id,
+            "population_size": req.population_size,
+            "generations_count": req.generations_count,
+        }
+    else:
+        lineage_log = await evolve_service.run_deep_forge(
+            spec=spec,
+            population_size=req.population_size,
+            generations_count=req.generations_count,
+            attacks_per_candidate=req.attacks_per_candidate,
+            cached_demo_preferred=req.cached_demo_preferred,
+        )
+        return lineage_log
+
+
+@app.get("/api/evolve/lineage/{spec_id}", response_model=EvolveLineageLog)
+async def get_evolve_lineage_endpoint(
+    spec_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    log = await repo.get_latest_lineage_log_by_spec(spec_id)
+    if not log:
+        raise HTTPException(status_code=404, detail=f"No Deep Forge lineage log found for spec {spec_id}")
+    return log
+
+
+@app.get("/api/evolve/logs", response_model=List[EvolveLineageLog])
+async def list_evolve_logs_endpoint(
+    limit: int = 20,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    return await repo.list_evolve_lineage_logs(limit=limit)
 
 
 if __name__ == "__main__":
