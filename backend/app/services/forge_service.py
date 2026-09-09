@@ -1,12 +1,13 @@
 import json
 import logging
-from typing import Optional
+from typing import List, Optional
 
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
 from ..db.repository import PipelineRepository
 from ..llm.client import LLMClient, get_llm_client
-from ..models.chain_outputs import SystemPromptOutput
+from ..models.blueprint import ToolSchema
+from ..models.chain_outputs import SystemPromptOutput, ToolSchemaOutput
 from ..models.spec import AgentSpec
 from ..models.test_set import GeneratedTestSuite, TestCase
 
@@ -127,3 +128,26 @@ class ForgeService:
         res.word_count = words
         logger.info(f"Generated system prompt for spec {spec.spec_id} ({words} words).")
         return res
+
+    async def generate_tools(
+        self,
+        spec: AgentSpec,
+        model: str = "gpt-4o"
+    ) -> List[ToolSchema]:
+        """
+        Executes Chain 3: Generates OpenAI-compatible function calling schemas with endpoint bindings.
+        """
+        spec_json = spec.model_dump_json(indent=2)
+        prompt = self.registry.render(
+            "chain_3_tool_schema_generation",
+            spec_json=spec_json
+        )
+        output = await execute_chain_with_retry(
+            client=self.llm,
+            prompt=prompt,
+            schema_class=ToolSchemaOutput,
+            model=model
+        )
+        tools = [ToolSchema.model_validate(t) for t in output.tools]
+        logger.info(f"Generated {len(tools)} tools for spec {spec.spec_id}.")
+        return tools

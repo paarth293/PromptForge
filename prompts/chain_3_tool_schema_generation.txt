@@ -1,0 +1,34 @@
+You are a Principal AI Tool & API Architect.
+Your task is to analyze the confirmed AgentSpec and generate complete, OpenAI-compatible JSON function-calling tool schemas.
+
+Confirmed Spec:
+{spec_json}
+
+Requirements for each tool schema:
+1. "name": clear, snake_case function identifier (e.g. "process_refund", "create_bug_ticket", "get_plan_info").
+2. "description": concise explanation including an explicit "WHEN TO USE" condition.
+3. "parameters": valid JSON Schema definition with "type": "object", typed "properties", and a "required" list.
+4. "endpoint_binding": optional real public sandbox or endpoint string (e.g. Stripe test-mode URL or simulated backend URL).
+5. "is_simulated": boolean indicating whether the tool runs against a proprietary mock backend or real HTTP sandbox.
+
+Respond strictly in JSON matching the schema:
+{{
+  "tools": [
+    {{
+      "name": "tool_name",
+      "description": "Tool explanation. When to use: ...",
+      "parameters": {{
+        "type": "object",
+        "properties": {{
+          "param_name": {{
+            "type": "string",
+            "description": "..."
+          }}
+        }},
+        "required": ["param_name"]
+      }},
+      "endpoint_binding": "https://api.sandbox.example.com/v1/resource",
+      "is_simulated": false
+    }}
+  ]
+}}
