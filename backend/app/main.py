@@ -19,6 +19,7 @@ from .db.repository import PipelineRepository
 from .db.session import init_db
 from .models import (
     AgentBlueprint,
+    AgentDossier,
     AgentSpec,
     ArenaPairingRequest,
     ArenaPairingTranscript,
@@ -27,6 +28,7 @@ from .models import (
     CertificateVerificationResult,
     ChatRequest,
     ChatResponse,
+    ClaimVerificationResult,
     DeepForgeRunRequest,
     DeploymentPackage,
     EvolveLineageLog,
@@ -60,6 +62,7 @@ from .services.audit_import_service import AuditImportService
 from .services.audit_pipeline_service import AuditPipelineService
 from .services.certificate_service import CertificateService
 from .services.deployment_service import DeploymentService
+from .services.dossier_service import DossierService
 from .services.evolve_service import EvolveService
 from .services.forge_service import ForgeService
 from .services.harden_service import HardenService
@@ -997,6 +1000,50 @@ async def test_seam_handoff_endpoint(
         boundary_mode=req.boundary_mode,  # type: ignore
     )
     return result
+
+
+# =========================================================================
+# Phase 12: DOSSIER Endpoints (Step 94 & 95)
+# =========================================================================
+
+@app.get("/api/dossier/{agent_id}", response_model=AgentDossier)
+async def get_dossier_endpoint(
+    agent_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = DossierService(repo=repo)
+    dossier = await service.get_dossier(agent_id)
+    if not dossier:
+        raise HTTPException(status_code=404, detail=f"Dossier for agent '{agent_id}' not found.")
+    return dossier
+
+
+@app.post("/api/dossier/{agent_id}/assemble", response_model=AgentDossier)
+async def assemble_dossier_endpoint(
+    agent_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = DossierService(repo=repo)
+    try:
+        return await service.assemble_dossier(blueprint_id=agent_id, agent_id=agent_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/dossier/{agent_id}/claims/{claim_id}/verify", response_model=ClaimVerificationResult)
+async def verify_dossier_claim_endpoint(
+    agent_id: str,
+    claim_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    repo = PipelineRepository()
+    service = DossierService(repo=repo)
+    try:
+        return await service.verify_claim(agent_id=agent_id, claim_id=claim_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 if __name__ == "__main__":

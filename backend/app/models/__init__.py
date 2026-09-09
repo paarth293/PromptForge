@@ -24,6 +24,7 @@ from .certificate import BirthCertificate, CertificateVerificationResult
 from .deployment import DeploymentPackage
 from .dossier import (
     AgentDossier,
+    ClaimVerificationResult,
     DossierArenaRecord,
     DossierCapabilityRecord,
     DossierLineageRecord,
@@ -124,6 +125,7 @@ __all__ = [
     "DeploymentPackage",
     "AdversarialPlaybookEntry",
     "AgentDossier",
+    "ClaimVerificationResult",
     "DossierCapabilityRecord",
     "DossierPatchRecord",
     "DossierArenaRecord",

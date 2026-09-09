@@ -138,3 +138,17 @@ class AgentDossier(BaseModel):
         if not self.claims:
             return True
         return all(c.is_verified and bool(c.evidence_hash) for c in self.claims)
+
+
+class ClaimVerificationResult(BaseModel):
+    """Result of validating an individual claim against its underlying hash chain artifact."""
+    claim_id: str
+    is_valid: bool
+    claim_type: str
+    statement: str
+    underlying_artifact_id: str
+    evidence_hash: str
+    computed_live_hash: str
+    verification_details: str
+    checked_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+

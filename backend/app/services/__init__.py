@@ -1,4 +1,5 @@
 """PromptForge Services Module"""
+from .dossier_service import DossierService
 from .forge_service import ForgeService
 from .harden_service import HardenService
 from .redteam_service import RedTeamService
@@ -7,6 +8,7 @@ from .seed_corpus_service import SeedCorpusService
 from .verify_service import VerifyService
 
 __all__ = [
+    "DossierService",
     "ForgeService",
     "RedTeamService",
     "HardenService",
