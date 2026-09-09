@@ -15,6 +15,7 @@ import {
   Flame,
   Award,
   Swords,
+  FileCheck,
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
@@ -24,10 +25,11 @@ import VerificationScorecardView, { VerificationScorecardData } from '../compone
 import AuditModeEntry from '../components/AuditModeEntry';
 import DeepForgeLineageViewer from '../components/DeepForgeLineageViewer';
 import ArenaView from '../components/ArenaView';
+import DossierView from '../components/DossierView';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify' | 'evolve' | 'arena';
+type ForgeStage = 'input' | 'confirm_spec' | 'assembling' | 'chat' | 'redteam' | 'harden' | 'verify' | 'evolve' | 'arena' | 'dossier';
 
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
@@ -303,6 +305,13 @@ export default function HomePage() {
               className={`px-2.5 py-1 rounded-lg transition ${stage === 'arena' ? 'bg-red-600 text-white' : 'bg-[#151C2C] hover:bg-slate-800'}`}
             >
               9. ARENA
+            </button>
+            <span>→</span>
+            <button
+              onClick={() => setStage('dossier')}
+              className={`px-2.5 py-1 rounded-lg transition ${stage === 'dossier' ? 'bg-indigo-600 text-white' : 'bg-[#151C2C] hover:bg-slate-800'}`}
+            >
+              10. Dossier
             </button>
           </div>
         ) : (
@@ -630,6 +639,13 @@ export default function HomePage() {
               agentName={blueprint?.agent_name || spec?.agent_name || 'Customer Support Assistant'}
               onBackToVerification={() => setStage('verify')}
             />
+          </div>
+        )}
+
+        {/* STAGE 10: DOSSIER Verifiable Employment Record */}
+        {stage === 'dossier' && (
+          <div className="w-full animate-in fade-in duration-300">
+            <DossierView agentId={blueprint?.blueprint_id} />
           </div>
         )}
       </div>
