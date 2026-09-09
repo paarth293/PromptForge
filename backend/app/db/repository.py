@@ -224,6 +224,24 @@ class PipelineRepository:
             )
             await conn.commit()
 
+    async def get_policy(self, policy_id: str) -> Optional[PolicyObject]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM policies WHERE policy_id = ?;", (policy_id,))
+            row = await cursor.fetchone()
+            if row:
+                return PolicyObject.model_validate_json(row[0])
+            return None
+
+    async def get_policy_by_spec(self, spec_id: str) -> Optional[PolicyObject]:
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            cursor = await conn.execute("SELECT data_json FROM policies WHERE spec_id = ? ORDER BY created_at DESC LIMIT 1;", (spec_id,))
+            row = await cursor.fetchone()
+            if row:
+                return PolicyObject.model_validate_json(row[0])
+            return None
+
     # AuditEvent
     async def save_audit_event(self, event: AuditEvent):
         async with self._connect() as conn:

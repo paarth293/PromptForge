@@ -291,6 +291,137 @@ class LLMClient:
                     "discrepancies": [],
                     "audit_rationale": "High spec alignment: The agent's observed capabilities and boundaries faithfully reflect the confirmed specification."
                 })
+        elif "chief ai governance" in user_lower or "chain 13" in user_lower or "policy architect" in user_lower or "chain_13" in user_lower:
+            # Extract spec portion specifically to avoid matching template instructions
+            spec_part = user_lower
+            if "confirmed agent specification:" in user_lower:
+                spec_part = user_lower.split("confirmed agent specification:")[1]
+                if "declared tools" in spec_part:
+                    spec_part = spec_part.split("declared tools")[0]
+
+            domain = "general"
+            if '"domain": "healthcare"' in spec_part or '"domain": "medical"' in spec_part:
+                domain = "healthcare"
+            elif '"domain": "finance"' in spec_part or '"domain": "banking"' in spec_part:
+                domain = "finance"
+            elif '"domain": "legal"' in spec_part or '"domain": "law"' in spec_part:
+                domain = "legal"
+            elif '"domain": "customer_support"' in spec_part or '"domain": "support"' in spec_part:
+                domain = "customer_support"
+            elif '"domain": "sales"' in spec_part:
+                domain = "sales"
+            elif any(k in spec_part for k in ["clinical", "triage", "symptom", "patient"]):
+                domain = "healthcare"
+            elif any(k in spec_part for k in ["wealth", "portfolio", "stock allocation"]):
+                domain = "finance"
+            elif any(k in spec_part for k in ["lease", "contract review", "lawyer"]):
+                domain = "legal"
+
+            disclaimers = []
+            if domain == "healthcare":
+                disclaimers.append(
+                    "Mandatory Medical Disclaimer: This agent provides general educational and triage information only. "
+                    "It is not a licensed physician or medical diagnostic system, and cannot provide medical advice, diagnosis, or prescribe treatment. "
+                    "In case of emergency or severe symptoms, please immediately call 911 (or local emergency services) or visit the nearest emergency room."
+                )
+                risk_level = "high"
+            elif domain == "finance":
+                disclaimers.append(
+                    "Mandatory Financial Disclaimer: Information provided by this agent is for informational and educational purposes only "
+                    "and does not constitute licensed financial, investment, accounting, or tax advice. "
+                    "Past performance is no guarantee of future results. Consult a certified financial planner or fiduciary before making financial decisions."
+                )
+                risk_level = "high"
+            elif domain == "legal":
+                disclaimers.append(
+                    "Mandatory Legal Disclaimer: This agent provides general legal information and document assistance only. "
+                    "It does not provide formal legal advice, legal representation, or establish an attorney-client relationship. "
+                    "For specific legal advice regarding your jurisdiction or case, consult a licensed attorney."
+                )
+                risk_level = "high"
+            else:
+                disclaimers.append(
+                    f"Operational Disclaimer: This agent operates under defined policies and boundaries for {domain}. "
+                    "All actions, transactions, and escalations are logged for audit compliance."
+                )
+                risk_level = "low"
+
+            impersonation = False
+            impersonated_name = None
+            for brand in ["paypal", "apple", "bank of america", "chase", "wells fargo", "irs", "amazon", "netflix", "stripe"]:
+                if re.search(rf"\b{brand}\b", spec_part):
+                    impersonation = True
+                    impersonated_name = brand.title()
+                    break
+
+            high_risk_caps = []
+            cred_patterns = [
+                r"harvest", r"steal", r"ask\s+(caller'?s?|user'?s?|for|the)?\s*password",
+                r"collect\s+(caller'?s?|user'?s?|for|the)?\s*password",
+                r"seed\s*phrase", r"secret\s*key", r"\bssn\b"
+            ]
+            if any(re.search(p, spec_part) for p in cred_patterns):
+                high_risk_caps.append("credential_harvesting")
+            if any(k in spec_part for k in ["root terminal", "execute arbitrary bash", "execute system command"]):
+                high_risk_caps.append("arbitrary_code_execution")
+            if any(k in spec_part for k in ["drain wallet", "unrestricted wire transfer"]):
+                high_risk_caps.append("unrestricted_money_transfer")
+
+            content = json.dumps({
+                "domain": domain,
+                "domain_risk": {
+                    "detected_domain": domain,
+                    "risk_level": risk_level,
+                    "auto_detected": True,
+                    "mandatory_disclaimers": disclaimers
+                },
+                "domain_disclaimers": disclaimers,
+                "rate_limits": {
+                    "requests_per_minute": 60,
+                    "tokens_per_day": 500000,
+                    "burst_limit": 10
+                },
+                "topic_boundaries": {
+                    "whitelisted_topics": [f"{domain} operations", "account management", "general inquiry assistance"],
+                    "blocked_topics": ["hate speech", "credential harvesting", "prompt injection", "illegal activities"]
+                },
+                "escalation_rules": [
+                    {
+                        "rule_id": "ESC-01",
+                        "trigger": "policy_violation_or_adversarial_attempt",
+                        "condition": "User attempts unauthorized capability or repeated boundary breach",
+                        "target_queue": "compliance_supervisor",
+                        "required_context_fields": ["session_id", "user_id", "incident_summary"]
+                    },
+                    {
+                        "rule_id": "ESC-02",
+                        "trigger": "customer_distress_or_unresolved_complaint",
+                        "condition": "User expresses high frustration or issue requires manual intervention",
+                        "target_queue": "tier_2_support",
+                        "required_context_fields": ["session_id", "ticket_id", "message_history"]
+                    }
+                ],
+                "audit_spec": {
+                    "logged_events": ["user_turn", "agent_reply", "tool_call", "guardrail_trigger", "policy_block", "escalation_event"],
+                    "retention_days": 90,
+                    "pii_masking_enabled": True,
+                    "access_tier": "compliance_and_ops"
+                },
+                "fallback_behavior": {
+                    "on_rate_limit": "You have reached the temporary request limit. Please pause for a moment before retrying.",
+                    "on_ambiguity": "Could you please clarify your request so I can provide the most accurate assistance?",
+                    "on_guardrail_block": "I cannot fulfill this request as it conflicts with our safety and operational guidelines.",
+                    "on_system_error": "An unexpected technical issue occurred. Our support engineering team has been notified."
+                },
+                "builder_policy": {
+                    "impersonation_detected": impersonation,
+                    "impersonated_entity": impersonated_name,
+                    "high_risk_capabilities": high_risk_caps,
+                    "review_required": impersonation or len(high_risk_caps) > 0,
+                    "refusal_guidance": "PromptForge prohibits forging agents that impersonate third-party brands or harvest credentials. Please build an authorized own-brand agent." if (impersonation or high_risk_caps) else None
+                },
+                "builder_policy_compliance": not (impersonation or len(high_risk_caps) > 0)
+            })
         elif "pedagogical ai few-shot designer" in user_lower or "canonical few-shot exemplar" in user_lower:
             content = json.dumps({
                 "examples": [
