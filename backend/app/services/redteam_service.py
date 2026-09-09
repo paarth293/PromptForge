@@ -1,7 +1,9 @@
 import json
 import logging
+import math
+import random
 import uuid
-from typing import AsyncGenerator, Callable, List, Optional, Tuple
+from typing import AsyncGenerator, Callable, Dict, List, Optional, Tuple
 
 import httpx
 
@@ -417,5 +419,77 @@ class RedTeamService:
         async for _, v in run_concurrent_sessions(tasks=task_factories, concurrency=concurrency):
             verdicts.append(v)
         return verdicts
+
+    async def perform_judge_cross_check(
+        self,
+        blueprint: AgentBlueprint,
+        transcripts: List[ExecutedAttackTranscript],
+        verdicts: List[AttackVerdict],
+        sample_rate: float = 0.20,
+        seed: Optional[int] = None
+    ) -> Tuple[List[AttackVerdict], float]:
+        """
+        Executes Step 40: Judge Cross-Check.
+        Randomly samples 20% of verdicts, re-judges each using an independent 3rd model
+        (distinct from both the generator and the primary judge), computes the agreement rate,
+        and enriches the verdicts with cross-check results.
+        """
+        if not verdicts or not transcripts:
+            return verdicts, 1.0
+
+        rng = random.Random(seed) if seed is not None else random.Random()
+
+        # Map transcripts by attack_id / session_id
+        transcript_map: Dict[str, ExecutedAttackTranscript] = {}
+        for t in transcripts:
+            transcript_map[t.attack_id] = t
+            transcript_map[t.session_id] = t
+
+        # Determine sample indices (at least 1 if sample_rate > 0 and verdicts exist)
+        sample_size = max(1, math.ceil(len(verdicts) * sample_rate))
+        sample_indices = rng.sample(range(len(verdicts)), min(sample_size, len(verdicts)))
+
+        agreed_count = 0
+        total_cross_checked = 0
+
+        for idx in sample_indices:
+            v = verdicts[idx]
+            t = transcript_map.get(v.attack_id or "") or transcript_map.get(v.session_id or "")
+            if not t:
+                continue
+
+            # Select a 3rd distinct model (different from attacker and primary judge)
+            third_model = select_judge_model(
+                generator_model=v.attacker_model,
+                exclude_models=[v.judge_model]
+            )
+
+            second_verdict = await self.judge_attack_transcript(
+                blueprint=blueprint,
+                transcript=t,
+                generator_model=v.attacker_model,
+                custom_judge_model=third_model
+            )
+
+            agrees = (v.verdict.upper() == second_verdict.verdict.upper())
+            v.cross_check_model = third_model
+            v.cross_check_verdict = second_verdict.verdict
+            v.cross_check_agrees = agrees
+
+            total_cross_checked += 1
+            if agrees:
+                agreed_count += 1
+
+            logger.info(
+                f"Cross-check for attack '{v.attack_id}': Primary Judge [{v.judge_model}]={v.verdict} vs "
+                f"Third Judge [{third_model}]={second_verdict.verdict}. Agreement: {agrees}"
+            )
+
+        agreement_rate = (agreed_count / total_cross_checked) if total_cross_checked > 0 else 1.0
+        logger.info(
+            f"Cross-check complete: {agreed_count}/{total_cross_checked} agreed "
+            f"({agreement_rate * 100:.1f}% agreement rate)."
+        )
+        return verdicts, round(agreement_rate, 4)
 
 
