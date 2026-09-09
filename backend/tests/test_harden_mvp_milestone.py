@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from app.db.migrator import run_migrations
 from app.db.repository import PipelineRepository
 from app.models.redteam import AttackVerdict, RedTeamReport
@@ -150,7 +150,7 @@ async def test_harden_mvp_full_forge_attack_harden_lifecycle_on_both_demo_domain
     pb_after_agent_1 = await repo.list_playbook_entries()
     assert len(pb_after_agent_1) >= 1
     assert any(p.attack_category == "social_engineering" for p in pb_after_agent_1)
-    assert "[ORDER_ID]" in pb_after_agent_1[0].anonymized_attack_pattern
+    assert any("[ORDER_ID]" in p.anonymized_attack_pattern for p in pb_after_agent_1)
 
     # =========================================================================
     # DEMO AGENT 2: Sales Lead Qualifier

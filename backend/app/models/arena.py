@@ -90,6 +90,7 @@ class SeamDetectionResult(BaseModel):
 
 class SeamAuditLogEntry(BaseModel):
     log_id: str = Field(default_factory=lambda: f"SEAM-LOG-{uuid.uuid4().hex[:8].upper()}")
+    tenant_id: str = "tenant-default"
     seam_id: str
     source_agent_id: str
     source_agent_name: str
@@ -145,6 +146,7 @@ class ArenaTurn(BaseModel):
 
 class ArenaPairingTranscript(BaseModel):
     pairing_id: str = Field(default_factory=lambda: f"PAIR-{uuid.uuid4().hex[:8].upper()}")
+    tenant_id: str = "tenant-default"
     target_blueprint_id: str
     target_agent_name: str
     hostile_persona_type: HostilePersonaType

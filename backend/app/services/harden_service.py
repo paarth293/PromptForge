@@ -333,6 +333,7 @@ class HardenService:
         # If agent already meets or exceeds threshold and has no failing verdicts, terminate immediately
         if current_survival_rate >= survival_threshold and not failing_verdicts:
             hardening_log = HardeningLog(
+                tenant_id=blueprint.tenant_id,
                 initial_blueprint_id=blueprint.blueprint_id,
                 hardened_blueprint_id=blueprint.blueprint_id,
                 initial_survival_rate=initial_report.survival_rate,
@@ -451,6 +452,7 @@ class HardenService:
             "pass_records": [r.model_dump(mode="json") for r in pass_records],
         }
         hardening_log = HardeningLog(
+            tenant_id=blueprint.tenant_id,
             initial_blueprint_id=blueprint.blueprint_id,
             hardened_blueprint_id=current_blueprint.blueprint_id,
             initial_survival_rate=initial_report.survival_rate,

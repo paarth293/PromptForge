@@ -719,6 +719,7 @@ class EvolveService:
 
         lineage_log = EvolveLineageLog(
             lineage_id=lineage_id,
+            tenant_id=spec.tenant_id,
             spec_id=spec.spec_id,
             domain=spec.domain,
             generations=generation_records,

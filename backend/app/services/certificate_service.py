@@ -134,6 +134,7 @@ class CertificateService:
 
         cert = BirthCertificate(
             certificate_id=f"CERT-{uuid.uuid4().hex[:12].upper()}",
+            tenant_id=tenant_id or bp.tenant_id,
             agent_id=bp.blueprint_id,
             blueprint_hash=bp_hash,
             red_team_report_hash=report_hash,

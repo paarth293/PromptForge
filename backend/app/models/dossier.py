@@ -101,9 +101,10 @@ class AgentDossier(BaseModel):
     evolutionary lineage, and cryptographic provenance into a single tamper-evident record.
     """
     dossier_id: str = Field(default_factory=lambda: f"DOSSIER-{uuid.uuid4().hex[:8].upper()}")
+    tenant_id: str = "tenant-default"
     agent_id: str
-    blueprint_id: str
-    spec_id: str
+    blueprint_id: str = ""
+    spec_id: str = ""
     agent_name: str
     domain: str = "general"
     version: int = 1
@@ -111,7 +112,7 @@ class AgentDossier(BaseModel):
     capabilities: List[DossierCapabilityRecord] = Field(default_factory=list)
     security_record: DossierSecurityRecord = Field(default_factory=DossierSecurityRecord)
     lineage: DossierLineageRecord = Field(default_factory=DossierLineageRecord)
-    provenance: DossierProvenanceRecord
+    provenance: Optional[DossierProvenanceRecord] = None
     claims: List[DossierVerifiableClaim] = Field(default_factory=list)
 
     dossier_hash: Optional[str] = None
@@ -125,10 +126,11 @@ class AgentDossier(BaseModel):
         """
         cap_hashes = ":".join(c.claim_hash or compute_sha256(c.name + c.description) for c in self.capabilities)
         claim_hashes = ":".join(cl.evidence_hash for cl in self.claims)
+        prov_hash = self.provenance.provenance_hash if self.provenance else "GENESIS"
         content_string = (
             f"{self.dossier_id}:{self.agent_id}:{self.blueprint_id}:{self.spec_id}:"
             f"{self.security_record.promptforge_score}:{self.security_record.redteam_survival_rate}:"
-            f"{self.lineage.lineage_log_hash or 'GENESIS'}:{self.provenance.provenance_hash}:"
+            f"{self.lineage.lineage_log_hash or 'GENESIS'}:{prov_hash}:"
             f"{cap_hashes}:{claim_hashes}"
         )
         return compute_sha256(content_string)

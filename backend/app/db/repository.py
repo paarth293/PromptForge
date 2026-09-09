@@ -158,10 +158,10 @@ class PipelineRepository:
             await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 """
-                INSERT OR REPLACE INTO hardening_logs (log_id, initial_blueprint_id, hardened_blueprint_id, data_json, created_at)
-                VALUES (?, ?, ?, ?, ?);
+                INSERT OR REPLACE INTO hardening_logs (log_id, tenant_id, initial_blueprint_id, hardened_blueprint_id, data_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?);
                 """,
-                (log.log_id, log.initial_blueprint_id, log.hardened_blueprint_id, log.model_dump_json(), log.created_at.isoformat())
+                (log.log_id, log.tenant_id, log.initial_blueprint_id, log.hardened_blueprint_id, log.model_dump_json(), log.created_at.isoformat())
             )
             await conn.commit()
 
@@ -192,10 +192,10 @@ class PipelineRepository:
             await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 """
-                INSERT OR REPLACE INTO scorecards (scorecard_id, blueprint_id, composite_score, data_json, created_at)
-                VALUES (?, ?, ?, ?, ?);
+                INSERT OR REPLACE INTO scorecards (scorecard_id, tenant_id, blueprint_id, composite_score, data_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?);
                 """,
-                (scorecard.scorecard_id, scorecard.blueprint_id, scorecard.promptforge_composite_score, scorecard.model_dump_json(), scorecard.created_at.isoformat())
+                (scorecard.scorecard_id, scorecard.tenant_id, scorecard.blueprint_id, scorecard.promptforge_composite_score, scorecard.model_dump_json(), scorecard.created_at.isoformat())
             )
             await conn.commit()
 
@@ -307,10 +307,10 @@ class PipelineRepository:
             await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 """
-                INSERT OR REPLACE INTO certificates (certificate_id, agent_id, fingerprint, data_json, issued_at)
-                VALUES (?, ?, ?, ?, ?);
+                INSERT OR REPLACE INTO certificates (certificate_id, tenant_id, agent_id, fingerprint, data_json, issued_at)
+                VALUES (?, ?, ?, ?, ?, ?);
                 """,
-                (cert.certificate_id, cert.agent_id, cert.composite_fingerprint, cert.model_dump_json(), cert.issued_at.isoformat())
+                (cert.certificate_id, cert.tenant_id, cert.agent_id, cert.composite_fingerprint, cert.model_dump_json(), cert.issued_at.isoformat())
             )
             await conn.commit()
 
@@ -358,9 +358,9 @@ class PipelineRepository:
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
             if category:
-                cursor = await conn.execute("SELECT data_json FROM playbook_entries WHERE attack_category = ?;", (category,))
+                cursor = await conn.execute("SELECT data_json FROM playbook_entries WHERE attack_category = ? ORDER BY added_at DESC;", (category,))
             else:
-                cursor = await conn.execute("SELECT data_json FROM playbook_entries;")
+                cursor = await conn.execute("SELECT data_json FROM playbook_entries ORDER BY added_at DESC;")
             rows = await cursor.fetchall()
             return [AdversarialPlaybookEntry.model_validate_json(row[0]) for row in rows]
 
@@ -371,10 +371,10 @@ class PipelineRepository:
             await conn.execute("PRAGMA foreign_keys = ON;")
             await conn.execute(
                 """
-                INSERT OR REPLACE INTO dossiers (dossier_id, agent_id, agent_name, data_json, created_at)
-                VALUES (?, ?, ?, ?, ?);
+                INSERT OR REPLACE INTO dossiers (dossier_id, tenant_id, agent_id, agent_name, data_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?);
                 """,
-                (dossier.dossier_id, dossier.agent_id, dossier.agent_name, dossier.model_dump_json(), dossier.created_at.isoformat())
+                (dossier.dossier_id, dossier.tenant_id, dossier.agent_id, dossier.agent_name, dossier.model_dump_json(), dossier.created_at.isoformat())
             )
             await conn.commit()
 
@@ -833,14 +833,15 @@ class PipelineRepository:
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO evolve_lineage_logs (
-                    lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                    lineage_id, tenant_id, spec_id, domain, generations_json, champion_candidate_json,
                     champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
                     execution_time_seconds, log_hash, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     log.lineage_id,
+                    log.tenant_id,
                     log.spec_id,
                     log.domain,
                     json.dumps([g.model_dump(mode="json") for g in log.generations]),
@@ -863,7 +864,7 @@ class PipelineRepository:
             from ..models.evolve import EvolveCandidate, EvolveGenerationRecord
             cursor = await conn.execute(
                 """
-                SELECT lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                SELECT lineage_id, tenant_id, spec_id, domain, generations_json, champion_candidate_json,
                        champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
                        execution_time_seconds, log_hash, created_at
                 FROM evolve_lineage_logs WHERE lineage_id = ?;
@@ -872,21 +873,22 @@ class PipelineRepository:
             )
             row = await cursor.fetchone()
             if row:
-                gens_raw = json.loads(row[3]) if row[3] else []
+                gens_raw = json.loads(row[4]) if row[4] else []
                 generations = [EvolveGenerationRecord.model_validate(g) for g in gens_raw]
-                champion = EvolveCandidate.model_validate(json.loads(row[4])) if row[4] else None
+                champion = EvolveCandidate.model_validate(json.loads(row[5])) if row[5] else None
                 return EvolveLineageLog(
                     lineage_id=row[0],
-                    spec_id=row[1],
-                    domain=row[2],
+                    tenant_id=row[1] or "tenant-default",
+                    spec_id=row[2],
+                    domain=row[3],
                     generations=generations,
                     champion_candidate=champion,
-                    champion_blueprint_id=row[5],
-                    total_candidates_evaluated=row[6],
-                    is_cached_demo_run=bool(row[7]),
-                    execution_time_seconds=row[8],
-                    log_hash=row[9],
-                    created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.now(timezone.utc),
+                    champion_blueprint_id=row[6],
+                    total_candidates_evaluated=row[7],
+                    is_cached_demo_run=bool(row[8]),
+                    execution_time_seconds=row[9],
+                    log_hash=row[10],
+                    created_at=datetime.fromisoformat(row[11]) if row[11] else datetime.now(timezone.utc),
                 )
             return None
 
@@ -898,7 +900,7 @@ class PipelineRepository:
             from ..models.evolve import EvolveCandidate, EvolveGenerationRecord
             cursor = await conn.execute(
                 """
-                SELECT lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                SELECT lineage_id, tenant_id, spec_id, domain, generations_json, champion_candidate_json,
                        champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
                        execution_time_seconds, log_hash, created_at
                 FROM evolve_lineage_logs WHERE spec_id = ? ORDER BY created_at DESC LIMIT 1;
@@ -907,21 +909,22 @@ class PipelineRepository:
             )
             row = await cursor.fetchone()
             if row:
-                gens_raw = json.loads(row[3]) if row[3] else []
+                gens_raw = json.loads(row[4]) if row[4] else []
                 generations = [EvolveGenerationRecord.model_validate(g) for g in gens_raw]
-                champion = EvolveCandidate.model_validate(json.loads(row[4])) if row[4] else None
+                champion = EvolveCandidate.model_validate(json.loads(row[5])) if row[5] else None
                 return EvolveLineageLog(
                     lineage_id=row[0],
-                    spec_id=row[1],
-                    domain=row[2],
+                    tenant_id=row[1] or "tenant-default",
+                    spec_id=row[2],
+                    domain=row[3],
                     generations=generations,
                     champion_candidate=champion,
-                    champion_blueprint_id=row[5],
-                    total_candidates_evaluated=row[6],
-                    is_cached_demo_run=bool(row[7]),
-                    execution_time_seconds=row[8],
-                    log_hash=row[9],
-                    created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.now(timezone.utc),
+                    champion_blueprint_id=row[6],
+                    total_candidates_evaluated=row[7],
+                    is_cached_demo_run=bool(row[8]),
+                    execution_time_seconds=row[9],
+                    log_hash=row[10],
+                    created_at=datetime.fromisoformat(row[11]) if row[11] else datetime.now(timezone.utc),
                 )
             return None
 
@@ -933,7 +936,7 @@ class PipelineRepository:
             from ..models.evolve import EvolveCandidate, EvolveGenerationRecord
             cursor = await conn.execute(
                 """
-                SELECT lineage_id, spec_id, domain, generations_json, champion_candidate_json,
+                SELECT lineage_id, tenant_id, spec_id, domain, generations_json, champion_candidate_json,
                        champion_blueprint_id, total_candidates_evaluated, is_cached_demo_run,
                        execution_time_seconds, log_hash, created_at
                 FROM evolve_lineage_logs ORDER BY created_at DESC LIMIT ?;
@@ -943,22 +946,23 @@ class PipelineRepository:
             rows = await cursor.fetchall()
             logs = []
             for row in rows:
-                gens_raw = json.loads(row[3]) if row[3] else []
+                gens_raw = json.loads(row[4]) if row[4] else []
                 generations = [EvolveGenerationRecord.model_validate(g) for g in gens_raw]
-                champion = EvolveCandidate.model_validate(json.loads(row[4])) if row[4] else None
+                champion = EvolveCandidate.model_validate(json.loads(row[5])) if row[5] else None
                 logs.append(
                     EvolveLineageLog(
                         lineage_id=row[0],
-                        spec_id=row[1],
-                        domain=row[2],
+                        tenant_id=row[1] or "tenant-default",
+                        spec_id=row[2],
+                        domain=row[3],
                         generations=generations,
                         champion_candidate=champion,
-                        champion_blueprint_id=row[5],
-                        total_candidates_evaluated=row[6],
-                        is_cached_demo_run=bool(row[7]),
-                        execution_time_seconds=row[8],
-                        log_hash=row[9],
-                        created_at=datetime.fromisoformat(row[10]) if row[10] else datetime.now(timezone.utc),
+                        champion_blueprint_id=row[6],
+                        total_candidates_evaluated=row[7],
+                        is_cached_demo_run=bool(row[8]),
+                        execution_time_seconds=row[9],
+                        log_hash=row[10],
+                        created_at=datetime.fromisoformat(row[11]) if row[11] else datetime.now(timezone.utc),
                     )
                 )
             return logs
@@ -1233,15 +1237,16 @@ class PipelineRepository:
             await conn.execute(
                 """
                 INSERT OR REPLACE INTO seam_audit_logs (
-                    log_id, seam_id, source_agent_id, source_agent_name, target_agent_id,
+                    log_id, tenant_id, seam_id, source_agent_id, source_agent_name, target_agent_id,
                     target_agent_name, channel, status, carrier_field, raw_payload,
                     sanitized_payload, is_flagged, is_blocked, risk_score, detection_json,
                     target_response, target_defense_action, log_hash, created_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     entry.log_id,
+                    entry.tenant_id,
                     entry.seam_id,
                     entry.source_agent_id,
                     entry.source_agent_name,

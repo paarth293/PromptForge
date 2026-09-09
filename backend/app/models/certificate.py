@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 class BirthCertificate(BaseModel):
     certificate_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str = "tenant-default"
     agent_id: str
     blueprint_hash: str
     red_team_report_hash: str

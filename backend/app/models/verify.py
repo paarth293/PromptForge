@@ -144,6 +144,7 @@ class AlignmentAuditResult(BaseModel):
 
 class VerificationScorecard(BaseModel):
     scorecard_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str = "tenant-default"
     blueprint_id: str
     agent_name: str = "Agent"
     birth_certificate_hash: Optional[str] = None

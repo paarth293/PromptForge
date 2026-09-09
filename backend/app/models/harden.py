@@ -33,6 +33,7 @@ class HardeningPassRecord(BaseModel):
 
 class HardeningLog(BaseModel):
     log_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    tenant_id: str = "tenant-default"
     initial_blueprint_id: str
     hardened_blueprint_id: str
     initial_survival_rate: float

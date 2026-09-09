@@ -46,13 +46,11 @@ async def test_tenant_isolation_api():
         assert fetch_a.status_code == 200
         assert fetch_a.json()["agent_name"] == "CorpA_Agent"
 
-        # 3. Fetch as Tenant B -> Access Denied (403 PolicyViolationException)
+        # 3. Fetch as Tenant B -> Access Denied (404 Not Found to prevent leaking existence)
         fetch_b = await client.get(
             f"/api/blueprints/{bp_id}",
             headers={"X-Tenant-ID": "tenant-rival-b"}
         )
-        assert fetch_b.status_code == 403
+        assert fetch_b.status_code == 404
         err_data = fetch_b.json()
-        assert err_data["success"] is False
-        assert err_data["error"]["code"] == "POLICY_VIOLATION"
-        assert "tenant-corp-a" in err_data["error"]["message"]
+        assert "not found" in err_data.get("detail", "").lower()

@@ -350,6 +350,7 @@ async def get_hardening_log_endpoint(
     log = await repo.get_hardening_log(log_id)
     if not log:
         raise HTTPException(status_code=404, detail="Hardening log not found")
+    verify_tenant_access(log.tenant_id, tenant_id, "Hardening log")
     return log
 
 
@@ -359,6 +360,10 @@ async def list_hardening_logs_for_blueprint_endpoint(
     tenant_id: str = Depends(get_current_tenant_id)
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id, "Blueprint")
     return await repo.list_hardening_logs_for_blueprint(blueprint_id)
 
 
@@ -371,6 +376,7 @@ async def get_formatted_hardening_log_endpoint(
     log = await repo.get_hardening_log(log_id)
     if not log:
         raise HTTPException(status_code=404, detail="Hardening log not found")
+    verify_tenant_access(log.tenant_id, tenant_id, "Hardening log")
     service = HardenService(repo=repo)
     text = service.format_human_readable_log(log)
     return {"log_id": log.log_id, "formatted_log": text}
@@ -454,6 +460,11 @@ async def get_scorecard_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id, "Blueprint")
+
     card = await repo.get_latest_scorecard_by_blueprint(blueprint_id)
     if not card:
         return await run_verification_endpoint(blueprint_id=blueprint_id, tenant_id=tenant_id)
@@ -466,6 +477,11 @@ async def get_formatted_scorecard_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id, "Blueprint")
+
     card = await repo.get_latest_scorecard_by_blueprint(blueprint_id)
     if not card:
         card = await run_verification_endpoint(blueprint_id=blueprint_id, tenant_id=tenant_id)
@@ -507,6 +523,7 @@ async def get_certificate_endpoint(
     cert = await repo.get_certificate(certificate_id)
     if not cert:
         raise HTTPException(status_code=404, detail="Certificate not found")
+    verify_tenant_access(cert.tenant_id, tenant_id, "Certificate")
     return cert
 
 
@@ -519,6 +536,7 @@ async def get_certificate_by_agent_endpoint(
     cert = await repo.get_certificate_by_agent(agent_id)
     if not cert:
         raise HTTPException(status_code=404, detail="No certificate found for this agent")
+    verify_tenant_access(cert.tenant_id, tenant_id, "Certificate")
     return cert
 
 
@@ -770,6 +788,9 @@ async def list_monitor_schedules_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(agent_id)
+    if bp:
+        verify_tenant_access(bp.tenant_id, tenant_id, "Agent")
     return await repo.list_schedules_by_agent(agent_id)
 
 
@@ -780,6 +801,9 @@ async def trigger_monitor_run_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(agent_id)
+    if bp:
+        verify_tenant_access(bp.tenant_id, tenant_id, "Agent")
     service = MonitorService(repo=repo)
     return await service.execute_monitor_run(
         agent_id=agent_id,
@@ -805,6 +829,9 @@ async def get_monitor_history_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(agent_id)
+    if bp:
+        verify_tenant_access(bp.tenant_id, tenant_id, "Agent")
     service = MonitorService(repo=repo)
     return await service.get_agent_monitor_history(agent_id)
 
@@ -884,9 +911,13 @@ async def get_evolve_lineage_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    spec = await repo.get_spec(spec_id)
+    if spec:
+        verify_tenant_access(spec.tenant_id, tenant_id, "Spec")
     log = await repo.get_latest_lineage_log_by_spec(spec_id)
     if not log:
         raise HTTPException(status_code=404, detail=f"No Deep Forge lineage log found for spec {spec_id}")
+    verify_tenant_access(log.tenant_id, tenant_id, "Lineage log")
     return log
 
 
@@ -944,6 +975,7 @@ async def get_arena_run_endpoint(
     run = await arena_service.get_arena_run(arena_run_id)
     if not run:
         raise HTTPException(status_code=404, detail=f"Arena run {arena_run_id} not found")
+    verify_tenant_access(run.tenant_id, tenant_id, "Arena run")
     return run
 
 
@@ -953,6 +985,10 @@ async def list_arena_pairings_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id, "Blueprint")
     return await repo.list_arena_pairings_by_blueprint(blueprint_id)
 
 
@@ -1016,6 +1052,7 @@ async def get_dossier_endpoint(
     dossier = await service.get_dossier(agent_id)
     if not dossier:
         raise HTTPException(status_code=404, detail=f"Dossier for agent '{agent_id}' not found.")
+    verify_tenant_access(dossier.tenant_id, tenant_id, "Dossier")
     return dossier
 
 
@@ -1025,9 +1062,16 @@ async def assemble_dossier_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    bp = await repo.get_blueprint(agent_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Agent blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id, "Blueprint")
     service = DossierService(repo=repo)
     try:
-        return await service.assemble_dossier(blueprint_id=agent_id, agent_id=agent_id)
+        dossier = await service.assemble_dossier(blueprint_id=agent_id, agent_id=agent_id)
+        dossier.tenant_id = bp.tenant_id
+        await repo.save_dossier(dossier)
+        return dossier
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -1039,6 +1083,10 @@ async def verify_dossier_claim_endpoint(
     tenant_id: str = Depends(get_current_tenant_id),
 ):
     repo = PipelineRepository()
+    dossier = await repo.get_dossier(agent_id)
+    if not dossier:
+        raise HTTPException(status_code=404, detail="Dossier not found")
+    verify_tenant_access(dossier.tenant_id, tenant_id, "Dossier")
     service = DossierService(repo=repo)
     try:
         return await service.verify_claim(agent_id=agent_id, claim_id=claim_id)

@@ -1,9 +1,8 @@
 from typing import Optional
 
-from fastapi import Header
+from fastapi import Header, HTTPException
 
 from ..config import settings
-from .errors import PolicyViolationException
 
 
 def get_current_tenant_id(
@@ -17,13 +16,14 @@ def get_current_tenant_id(
         return x_tenant_id.strip()
     return settings.tenant_default_id
 
-def verify_tenant_access(resource_tenant_id: str, current_tenant_id: str):
+def verify_tenant_access(resource_tenant_id: str, current_tenant_id: str, resource_name: str = "Resource"):
     """
     Verifies that the caller's tenant ID matches the resource's owner tenant ID.
-    Raises PolicyViolationException on mismatch.
+    Rejects cross-tenant access with HTTP 404 (not 403, to avoid leaking existence).
     """
     if resource_tenant_id != current_tenant_id:
-        raise PolicyViolationException(
-            message=f"Access denied: Resource belongs to tenant '{resource_tenant_id}' but caller is '{current_tenant_id}'",
-            details={"required_tenant": resource_tenant_id, "current_tenant": current_tenant_id}
+        raise HTTPException(
+            status_code=404,
+            detail=f"{resource_name} not found"
         )
+

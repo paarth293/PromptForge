@@ -45,6 +45,7 @@ class EvolveGenerationRecord(BaseModel):
 
 class EvolveLineageLog(BaseModel):
     lineage_id: str = Field(default_factory=lambda: f"LIN-{uuid.uuid4().hex[:8].upper()}")
+    tenant_id: str = "tenant-default"
     spec_id: str
     domain: str = "general"
     generations: List[EvolveGenerationRecord] = Field(default_factory=list)

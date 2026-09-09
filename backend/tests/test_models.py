@@ -134,8 +134,9 @@ def test_instantiate_all_core_models():
     # 10. AgentDossier
     dossier = AgentDossier(
         agent_id=blueprint.blueprint_id,
+        blueprint_id=blueprint.blueprint_id,
+        spec_id=spec.spec_id,
         agent_name="SupportBot",
-        verified_capabilities=["Refunds up to $500"],
-        security_record={"survival": 0.90}
     )
     assert dossier.agent_name == "SupportBot"
+    assert dossier.compute_dossier_hash() is not None

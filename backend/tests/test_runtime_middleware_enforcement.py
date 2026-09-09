@@ -1,6 +1,6 @@
 import pytest
+from fastapi import HTTPException
 
-from backend.app.core.errors import PolicyViolationException
 from backend.app.core.policy_middleware import PolicyEnforcementMiddleware
 from backend.app.db.migrator import run_migrations
 from backend.app.db.repository import PipelineRepository
@@ -169,8 +169,9 @@ async def test_tenant_isolation_auth_middleware_gate(setup_env):
     resp_valid = await runtime.chat(blueprint.blueprint_id, req_valid)
     assert resp_valid.blocked is False
 
-    # Invalid cross-tenant caller -> Rejected
+    # Invalid cross-tenant caller -> Rejected with 404 (preventing resource existence leakage)
     req_invalid = ChatRequest(message="Hello", tenant_id="tenant-intruder-99")
-    with pytest.raises(PolicyViolationException) as exc:
+    with pytest.raises(HTTPException) as exc:
         await runtime.chat(blueprint.blueprint_id, req_invalid)
-    assert "Access denied" in str(exc.value)
+    assert exc.value.status_code == 404
+    assert "not found" in exc.value.detail.lower()

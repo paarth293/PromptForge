@@ -111,6 +111,7 @@ def test_evolve_api_endpoints(monkeypatch, tmp_path, sample_spec):
     monkeypatch.setattr("backend.app.main.PipelineRepository", lambda: repo)
 
     client = TestClient(app)
+    client.headers.update({"X-Tenant-ID": sample_spec.tenant_id})
 
     # 1. Background Run triggers queued response
     res_bg = client.post(
