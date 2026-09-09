@@ -34,6 +34,15 @@ class PolicyViolationException(PromptForgeException):
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(message, code="POLICY_VIOLATION", status_code=403, details=details)
 
+class BuilderPolicyViolationException(PolicyViolationException):
+    def __init__(self, message: str, guidance: Optional[str] = None, details: Optional[Dict[str, Any]] = None):
+        merged = details.copy() if details else {}
+        if guidance:
+            merged["guidance"] = guidance
+        super().__init__(message, details=merged)
+        self.code = "BUILDER_POLICY_VIOLATION"
+        self.guidance = guidance
+
 class LLMException(PromptForgeException):
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
         super().__init__(message, code="LLM_EXECUTION_ERROR", status_code=502, details=details)

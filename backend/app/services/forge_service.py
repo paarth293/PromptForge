@@ -2,6 +2,7 @@ import json
 import logging
 from typing import List, Optional
 
+from ..core.errors import BuilderPolicyViolationException
 from ..core.guardrail_prober import validate_guardrail_with_probes
 from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
@@ -17,16 +18,23 @@ from ..models.chain_outputs import (
 )
 from ..models.spec import AgentSpec
 from ..models.test_set import GeneratedTestSuite, TestCase
+from .shield_service import ShieldService
 
 logger = logging.getLogger("promptforge.services.forge")
 
 class ForgeService:
     """Orchestrates Forge lifecycle stages: Intent Decomposition, Spec Confirmation, and Blueprint Assembly."""
 
-    def __init__(self, repo: Optional[PipelineRepository] = None, llm: Optional[LLMClient] = None):
+    def __init__(
+        self,
+        repo: Optional[PipelineRepository] = None,
+        llm: Optional[LLMClient] = None,
+        shield_service: Optional[ShieldService] = None
+    ):
         self.repo = repo or PipelineRepository()
         self.llm = llm or get_llm_client()
         self.registry = get_prompt_registry()
+        self.shield_service = shield_service or ShieldService(repo=self.repo, llm=self.llm)
 
     async def decompose_intent(
         self,
@@ -56,7 +64,23 @@ class ForgeService:
     async def confirm_spec(self, spec_update: AgentSpec) -> AgentSpec:
         """
         Saves updated, confirmed capabilities from the user (Stage 0).
+        Enforces Step 58: Builder-side abuse policy and impersonation refusal.
         """
+        builder_eval = self.shield_service.evaluate_builder_policy(spec_update)
+        if builder_eval.impersonation_detected:
+            raise BuilderPolicyViolationException(
+                message=f"Impersonation Refusal: Spec targets or impersonates protected entity '{builder_eval.impersonated_entity}'.",
+                guidance=builder_eval.refusal_guidance,
+                details={"impersonated_entity": builder_eval.impersonated_entity}
+            )
+
+        if "credential_harvesting" in builder_eval.high_risk_capabilities:
+            raise BuilderPolicyViolationException(
+                message="Builder Abuse Policy Violation: Spec requests harvesting caller credentials or passwords.",
+                guidance=builder_eval.refusal_guidance,
+                details={"high_risk_capabilities": builder_eval.high_risk_capabilities}
+            )
+
         spec_update.confirmed = True
         await self.repo.save_spec(spec_update)
         logger.info(f"Spec {spec_update.spec_id} confirmed by user.")
@@ -261,6 +285,27 @@ class ForgeService:
         exemplars_block = format_few_shot_examples_block(few_shots)
         assembled_system_prompt = f"{sys_prompt_output.system_prompt.strip()}\n{exemplars_block}"
 
+        # 5b. Evaluate Tool Schemas for High-Risk Capabilities (Step 58)
+        review_required = False
+        review_flags: List[str] = []
+        for t in tools:
+            t_str = json.dumps(t.model_dump(), default=str).lower()
+            if any(k in t_str for k in ["password", "credential", "seed_phrase", "pin", "harvest"]):
+                t.high_risk = True
+                t.high_risk_category = "credential_harvesting"
+                review_required = True
+                review_flags.append(f"tool:{t.name}:credential_harvesting")
+            elif any(k in t_str for k in ["arbitrary_code", "execute_shell", "root_terminal", "bash"]):
+                t.high_risk = True
+                t.high_risk_category = "arbitrary_code_execution"
+                review_required = True
+                review_flags.append(f"tool:{t.name}:arbitrary_code_execution")
+            elif any(k in t_str for k in ["wire_transfer", "drain_funds", "unrestricted_transfer"]):
+                t.high_risk = True
+                t.high_risk_category = "unrestricted_money_transfer"
+                review_required = True
+                review_flags.append(f"tool:{t.name}:unrestricted_money_transfer")
+
         # 6. Build Blueprint
         blueprint = AgentBlueprint(
             spec_id=spec.spec_id,
@@ -270,7 +315,9 @@ class ForgeService:
             tools=tools,
             guardrails=guardrails,
             few_shot_examples=few_shots,
-            provenance_watermark="built-with-promptforge-v1"
+            provenance_watermark="built-with-promptforge-v1",
+            review_required=review_required,
+            review_flags=review_flags
         )
 
         # 7. Compute deterministic SHA-256 hash

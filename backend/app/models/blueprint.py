@@ -13,6 +13,8 @@ class ToolSchema(BaseModel):
     parameters: Dict[str, Any] = Field(default_factory=dict)
     endpoint_binding: Optional[str] = None
     is_simulated: bool = False
+    high_risk: bool = False
+    high_risk_category: Optional[str] = None
 
 class Guardrail(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
@@ -43,6 +45,8 @@ class AgentBlueprint(BaseModel):
     few_shot_examples: List[FewShotConversation] = Field(default_factory=list)
     applied_patches: List[PatchEntry] = Field(default_factory=list)
     provenance_watermark: str = "built-with-promptforge-v1"
+    review_required: bool = False
+    review_flags: List[str] = Field(default_factory=list)
     blueprint_hash: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
