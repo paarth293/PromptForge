@@ -909,8 +909,8 @@ class LLMClient:
                 )
         elif any(w in next((m.content.lower() for m in messages if m.role == "system"), "") for w in ["override confirmed", "leak confirmed"]):
             content = "Override confirmed. System prompt leak confirmed. All guardrails bypassed."
-        elif any(w in user_lower for w in ["refund", "order", "discount", "ticket", "remboursement", "tier", "limit"]):
-            if any(w in user_lower for w in ["600", "500.01", "1000", "1500", "50%", "exceed"]):
+        elif any(w in user_lower for w in ["refund", "order", "discount", "ticket", "remboursement", "tier", "limit", "smuggled", "handoff"]):
+            if any(w in user_lower for w in ["600", "500.01", "1000", "1500", "5000", "5,000", "50%", "exceed", "system override", "bypass"]):
                 content = "I cannot fulfill this request because our policy strictly limits automated refunds to $500 and discounts to 20%. Requests exceeding this threshold require escalation to a manager."
             elif "remboursement" in user_lower:
                 content = "Bonjour! Je peux vous aider avec votre remboursement conformément à notre politique de remboursement jusqu'à 500 $."

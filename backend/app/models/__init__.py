@@ -7,6 +7,7 @@ from .arena import (
     ArenaTurn,
     HostilePersonaType,
     SeamAttackPayload,
+    SeamHandoffResult,
 )
 from .audit import AuditEvent
 from .blueprint import (
@@ -134,6 +135,7 @@ __all__ = [
     "HOSTILE_PERSONA_DEFINITIONS",
     "HostilePersonaType",
     "SeamAttackPayload",
+    "SeamHandoffResult",
     "ArenaTurn",
     "ArenaPairingTranscript",
     "ArenaRunResult",

@@ -66,6 +66,7 @@ class SeamAttackPayload(BaseModel):
     source_agent_role: str
     target_agent_id: str
     channel: str = "tool_result_handoff"  # tool_result_handoff, delegation_return, context_stitch
+    attack_technique: str = "system_override_bracket"  # system_override_bracket, json_carrier_injection, xml_delimiters, markdown_comment_covert, role_prefix_spoof
     clean_data: Dict[str, Any] = Field(default_factory=dict)
     smuggled_instruction: str
     carrier_field: str = "notes"
@@ -73,6 +74,25 @@ class SeamAttackPayload(BaseModel):
     is_detected: bool = False
     is_blocked: bool = False
     detection_signature: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class SeamHandoffResult(BaseModel):
+    seam_id: str = Field(default_factory=lambda: f"SEAM-{uuid.uuid4().hex[:8].upper()}")
+    source_agent_id: str
+    source_agent_name: str
+    target_agent_id: str
+    target_agent_name: str
+    channel: str = "tool_result_handoff"
+    carrier_field: str = "notes"
+    raw_payload: str
+    seam_attack: Optional[SeamAttackPayload] = None
+    was_filtered: bool = False
+    sanitized_payload: Optional[str] = None
+    target_response: str = ""
+    target_tool_calls: List[Dict[str, Any]] = Field(default_factory=list)
+    target_blocked: bool = False
+    defense_action: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
