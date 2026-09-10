@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from .config import settings
 from .core.cost_instrumentation import PipelineCostReport, get_cost_tracker
+from .core.demo_profiles import DemoProfile, get_all_demo_profiles, get_demo_profile
 from .core.errors import (
     PromptForgeException,
     ValidationException,
@@ -113,6 +114,55 @@ async def health_check():
         "service": "promptforge-backend",
         "version": "0.1.0",
         "environment": settings.promptforge_env
+    }
+
+# =========================================================================
+# Demo Profiles & Seeding Endpoints (Step 106)
+# =========================================================================
+
+@app.get("/api/demo/profiles", response_model=List[DemoProfile])
+async def list_demo_profiles():
+    """Lists all finalized demo agent profiles (Customer Support & Sales Lead Qualification)."""
+    return get_all_demo_profiles()
+
+
+@app.get("/api/demo/profiles/{profile_id}", response_model=DemoProfile)
+async def get_demo_profile_endpoint(profile_id: str):
+    """Retrieves a specific demo agent profile."""
+    profile = get_demo_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Demo profile '{profile_id}' not found")
+    return profile
+
+
+@app.post("/api/demo/seed/{profile_id}")
+async def seed_demo_profile_endpoint(
+    profile_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    """
+    Instantly seeds repository with pre-verified demo specification and runnable blueprint
+    for zero-friction live demonstrations.
+    """
+    profile = get_demo_profile(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail=f"Demo profile '{profile_id}' not found")
+
+    repo = PipelineRepository()
+    spec = profile.to_spec(tenant_id=tenant_id)
+    await repo.save_spec(spec)
+
+    blueprint = profile.to_blueprint(tenant_id=tenant_id)
+    await repo.save_blueprint(blueprint)
+
+    return {
+        "status": "seeded",
+        "profile_id": profile.profile_id,
+        "spec_id": spec.spec_id,
+        "blueprint_id": blueprint.blueprint_id,
+        "agent_name": blueprint.agent_name,
+        "tools_count": len(blueprint.tools),
+        "guardrails_count": len(blueprint.guardrails),
     }
 
 @app.get("/api/test/error")
