@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .config import settings
+from .core.cost_instrumentation import PipelineCostReport, get_cost_tracker
 from .core.errors import (
     PromptForgeException,
     ValidationException,
@@ -562,6 +563,37 @@ async def verify_certificate_post_endpoint(
     cert_service = CertificateService(repo=repo)
     result = await cert_service.verify_certificate(req.certificate_id)
     return result
+
+
+# =========================================================================
+# Step 103: Cost & Token Instrumentation Endpoints
+# =========================================================================
+
+@app.get("/api/metrics/cost", response_model=PipelineCostReport)
+async def get_cost_report_endpoint(
+    run_id: str = "run-default",
+    blueprint_id: Optional[str] = None
+):
+    """
+    Step 103: Returns real token usage and cost report for the current or specified pipeline run.
+    """
+    return get_cost_tracker().generate_cost_report(run_id=run_id, blueprint_id=blueprint_id)
+
+
+@app.get("/api/metrics/cost/formatted")
+async def get_cost_report_formatted_endpoint():
+    """
+    Step 103: Returns ASCII-formatted cost report with stage breakdown matching the Idea Submission table.
+    """
+    tracker = get_cost_tracker()
+    report = tracker.generate_cost_report()
+    return {
+        "formatted": tracker.format_ascii_report(report),
+        "total_cost_usd": report.total_cost_usd,
+        "total_tokens": report.total_tokens,
+        "total_calls": report.total_calls,
+        "tier_classification": report.tier_classification,
+    }
 
 
 # =========================================================================

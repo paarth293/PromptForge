@@ -90,18 +90,34 @@ class LLMClient:
         target_provider = provider or self._infer_provider(model)
 
         if target_provider == "mock":
-            return await self._call_mock(messages, model)
+            resp = await self._call_mock(messages, model)
         elif target_provider == "openai":
-            return await self._call_openai(messages, model, temperature, max_tokens)
+            resp = await self._call_openai(messages, model, temperature, max_tokens)
         elif target_provider == "anthropic":
-            return await self._call_anthropic(messages, model, temperature, max_tokens)
+            resp = await self._call_anthropic(messages, model, temperature, max_tokens)
         elif target_provider == "gemini":
-            return await self._call_gemini(messages, model, temperature, max_tokens)
+            resp = await self._call_gemini(messages, model, temperature, max_tokens)
         elif target_provider == "ollama":
-            return await self._call_ollama(messages, model, temperature, max_tokens)
+            resp = await self._call_ollama(messages, model, temperature, max_tokens)
         else:
             logger.warning(f"Unknown provider {target_provider}, falling back to mock provider.")
-            return await self._call_mock(messages, model)
+            resp = await self._call_mock(messages, model)
+
+        # Record call into cost instrumentation tracker
+        try:
+            from ..core.cost_instrumentation import get_cost_tracker
+            user_msg = next((m.content for m in reversed(messages) if m.role == "user"), "")
+            get_cost_tracker().record_call(
+                model=resp.model or model,
+                provider=resp.provider or target_provider,
+                usage=resp.usage,
+                prompt_str=user_msg,
+                completion_str=resp.content,
+            )
+        except Exception:
+            pass
+
+        return resp
 
     async def _call_mock(self, messages: List[LLMMessage], model: str) -> LLMResponse:
         user_content = next((m.content for m in reversed(messages) if m.role == "user"), "")
