@@ -289,10 +289,14 @@ export default function UnifiedNavigationShell({
           </Link>
 
           {/* Surface Indicator Badge */}
-          <div className="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#121826] border border-[#232D42] text-[11px]">
-            <span className="text-slate-500">Surface:</span>
-            <span className={`font-bold uppercase tracking-wider ${surface === 'ask' ? 'text-amber-400' : 'text-blue-400'}`}>
-              {surface === 'ask' ? 'Ask Surface (User)' : 'Deploy Surface (Dev)'}
+          <div className={`hidden lg:flex items-center gap-2 px-3 py-1 rounded-xl border text-xs transition-all ${
+            surface === 'ask'
+              ? 'bg-amber-500/10 border-amber-500/30 text-amber-300 shadow-sm shadow-amber-500/5'
+              : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-300 shadow-sm shadow-cyan-500/5'
+          }`}>
+            <span className="text-slate-400 font-medium">Audience:</span>
+            <span className="font-bold uppercase tracking-wider">
+              {surface === 'ask' ? 'Creator & PM (Ask Surface)' : 'Platform & DevOps (Deploy Surface)'}
             </span>
           </div>
         </div>
@@ -493,13 +497,67 @@ export default function UnifiedNavigationShell({
         </div>
       </header>
 
+      {/* Surface Persona Distinction Banner */}
+      <div className={`w-full max-w-7xl px-4 md:px-8 py-2.5 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition-all ${
+        surface === 'ask'
+          ? 'bg-amber-950/25 border-amber-500/30 text-amber-200'
+          : 'bg-blue-950/25 border-cyan-500/30 text-cyan-200'
+      }`}>
+        <div className="flex items-center gap-2.5">
+          <div className={`p-1.5 rounded-lg border flex items-center justify-center shrink-0 ${
+            surface === 'ask'
+              ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 shadow-sm shadow-amber-500/10'
+              : 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300 shadow-sm shadow-cyan-500/10'
+          }`}>
+            {surface === 'ask' ? <Compass className="w-4 h-4" /> : <Terminal className="w-4 h-4" />}
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold tracking-wide uppercase text-[11px]">
+                {surface === 'ask' ? 'Ask Surface — Creator & Product Studio' : 'Deploy Surface — Platform & Security Console'}
+              </span>
+              <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono font-bold ${
+                surface === 'ask' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+              }`}>
+                {surface === 'ask' ? 'Creator Mode (PM/Domain Lead)' : 'Engineering Mode (DevOps/SecOps)'}
+              </span>
+            </div>
+            <p className="text-[11px] opacity-80 mt-0.5">
+              {surface === 'ask'
+                ? 'Serving the person who described the agent: Natural language intent, plain-English boundary review, conversational testing, and executive safety scorecards.'
+                : 'Serving the engineer who certifies and integrates the agent: Raw CRISPE prompt architecture, OpenAI tool schemas, surgical hardening diffs, HTTP API endpoints, and cryptographic tamper-evident ledgers.'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+          <button
+            type="button"
+            onClick={() => onSurfaceChange && onSurfaceChange(surface === 'ask' ? 'deploy' : 'ask')}
+            className={`px-3 py-1 rounded-lg font-semibold text-[11px] border transition-all ${
+              surface === 'ask'
+                ? 'bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/40 text-amber-300 shadow-sm'
+                : 'bg-cyan-500/15 hover:bg-cyan-500/25 border-cyan-500/40 text-cyan-300 shadow-sm'
+            }`}
+          >
+            Switch to {surface === 'ask' ? 'Deploy Surface →' : 'Ask Surface →'}
+          </button>
+        </div>
+      </div>
+
       {/* Unified Breadcrumb Strip & Progress Bar */}
-      <div className="w-full max-w-7xl px-4 md:px-8 py-3 bg-[#0B0F17]/50 border-b border-[#1A2234] flex flex-col gap-2">
+      <div className={`w-full max-w-7xl px-4 md:px-8 py-3 border-b flex flex-col gap-2 transition-all ${
+        surface === 'ask' ? 'bg-[#0E0F14]/60 border-amber-500/15' : 'bg-[#0B0F17]/50 border-[#1A2234]'
+      }`}>
         {/* Progress Bar */}
         <div className="w-full flex items-center justify-between text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-300">Pipeline Progression:</span>
-            <span className="text-blue-400 font-mono font-bold">{currentProgress}%</span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-slate-300">
+              {surface === 'ask' ? 'Creator Milestone Progress:' : 'Pipeline Progression:'}
+            </span>
+            <span className={`font-mono font-bold ${surface === 'ask' ? 'text-amber-400' : 'text-blue-400'}`}>
+              {currentProgress}%
+            </span>
             {agentName && (
               <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700 font-medium text-[11px] ml-1">
                 Agent: {agentName}
@@ -513,14 +571,22 @@ export default function UnifiedNavigationShell({
           </div>
 
           <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-500">
-            <span>Single-click any stage below to jump</span>
+            <span>
+              {surface === 'ask'
+                ? 'Showing 4 business milestone stages'
+                : 'Showing all 11 technical engineering stages'}
+            </span>
           </div>
         </div>
 
         {/* Progress Fill Track */}
         <div className="w-full h-1.5 bg-[#151C2C] rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-blue-600 via-indigo-500 to-emerald-500 transition-all duration-500 ease-out"
+            className={`h-full transition-all duration-500 ease-out ${
+              surface === 'ask'
+                ? 'bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400'
+                : 'bg-gradient-to-r from-blue-600 via-indigo-500 to-cyan-400'
+            }`}
             style={{ width: `${currentProgress}%` }}
           />
         </div>
@@ -531,6 +597,14 @@ export default function UnifiedNavigationShell({
             const isActive = activeStage === step.id;
             const Icon = step.icon;
 
+            const activeClass = surface === 'ask'
+              ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/30'
+              : 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30';
+
+            const inactiveClass = surface === 'ask'
+              ? 'bg-[#151412] text-amber-200/70 hover:text-amber-100 hover:bg-[#1E1C18] border border-amber-500/20'
+              : 'bg-[#121826] text-slate-400 hover:text-slate-200 hover:bg-[#1A2234] border border-[#232D42]';
+
             return (
               <React.Fragment key={step.id}>
                 {idx > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-600 shrink-0" />}
@@ -538,13 +612,11 @@ export default function UnifiedNavigationShell({
                   type="button"
                   onClick={() => handleStageClick(step.id)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg shrink-0 transition-all ${
-                    isActive
-                      ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
-                      : 'bg-[#121826] text-slate-400 hover:text-slate-200 hover:bg-[#1A2234] border border-[#232D42]'
+                    isActive ? activeClass : inactiveClass
                   }`}
                   title={step.subtitle}
                 >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : step.color}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? (surface === 'ask' ? 'text-slate-950' : 'text-white') : step.color}`} />
                   <span>{step.label}</span>
                 </button>
               </React.Fragment>
