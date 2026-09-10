@@ -16,7 +16,8 @@ import {
   FileText,
   Sparkles,
   Layers,
-  Scale
+  Scale,
+  Loader2
 } from 'lucide-react';
 
 export interface VerificationScorecardData {
@@ -40,7 +41,7 @@ export interface VerificationScorecardData {
 }
 
 interface VerificationScorecardViewProps {
-  scorecard: VerificationScorecardData;
+  scorecard?: VerificationScorecardData | null;
   agentName?: string;
   onBackToChat?: () => void;
   onBackToHardening?: () => void;
@@ -59,6 +60,44 @@ export default function VerificationScorecardView({
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedAscii, setCopiedAscii] = useState(false);
   const [showAsciiView, setShowAsciiView] = useState(false);
+
+  if (loading) {
+    return (
+      <div className="w-full max-w-5xl mx-auto p-12 rounded-2xl bg-[#121826] border border-[#232D42] text-center space-y-4 animate-in fade-in duration-200">
+        <div className="w-12 h-12 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 mx-auto">
+          <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+        </div>
+        <h3 className="text-lg font-bold text-white">Running Multi-Stage Verification Battery</h3>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          Evaluating ground-truth exact accuracy, tool-call sequence consistency across 5 runs, multi-turn goal journeys, and black-box alignment...
+        </p>
+      </div>
+    );
+  }
+
+  if (!scorecard) {
+    return (
+      <div className="w-full max-w-5xl mx-auto p-12 rounded-2xl bg-[#121826] border border-[#232D42] text-center space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
+          <Award className="w-6 h-6 text-slate-400" />
+        </div>
+        <h3 className="text-lg font-bold text-white">No Verification Scorecard Generated Yet</h3>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          Run the full 7-metric verification battery to evaluate {agentName}&apos;s accuracy, consistency, and alignment against the confirmed specification.
+        </p>
+        {onRerunVerify && (
+          <button
+            type="button"
+            onClick={onRerunVerify}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-blue-500/20 transition-all inline-flex items-center gap-2"
+          >
+            <Sparkles className="w-4 h-4" />
+            Run Verification Battery Now
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const composite = scorecard.promptforge_composite_score;
   const isHighPassing = composite >= 90;

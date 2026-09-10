@@ -15,7 +15,8 @@ import {
   Layers,
   Sparkles,
   GitCommit,
-  Award
+  Award,
+  Loader2
 } from 'lucide-react';
 
 export interface PatchEntryData {
@@ -53,11 +54,12 @@ export interface HardeningLogData {
 }
 
 interface HardeningLogViewProps {
-  hardeningLog: HardeningLogData;
+  hardeningLog?: HardeningLogData | null;
   agentName: string;
   onBackToRedTeam?: () => void;
   onChatWithHardenedAgent?: () => void;
   onProceedToVerification?: () => void;
+  loading?: boolean;
 }
 
 export default function HardeningLogView({
@@ -65,12 +67,50 @@ export default function HardeningLogView({
   agentName,
   onBackToRedTeam,
   onChatWithHardenedAgent,
-  onProceedToVerification
+  onProceedToVerification,
+  loading = false
 }: HardeningLogViewProps) {
   const [expandedDiffs, setExpandedDiffs] = useState<Record<string, boolean>>({});
   const [copiedHash, setCopiedHash] = useState(false);
   const [copiedText, setCopiedText] = useState(false);
   const [activeTab, setActiveTab] = useState<'visual' | 'plain'>('visual');
+
+  if (loading) {
+    return (
+      <div className="w-full max-w-5xl mx-auto p-12 rounded-2xl bg-[#121826] border border-[#232D42] text-center space-y-4 animate-in fade-in duration-200">
+        <div className="w-12 h-12 rounded-2xl bg-emerald-600/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
+          <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
+        </div>
+        <h3 className="text-lg font-bold text-white">Synthesizing Surgical Guardrail Patches</h3>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          Analyzing breach transcripts, generating minimal boundary diffs without prompt bloat, and re-attacking the agent to verify patch resilience...
+        </p>
+      </div>
+    );
+  }
+
+  if (!hardeningLog) {
+    return (
+      <div className="w-full max-w-5xl mx-auto p-12 rounded-2xl bg-[#121826] border border-[#232D42] text-center space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 mx-auto">
+          <Wrench className="w-6 h-6 text-slate-400" />
+        </div>
+        <h3 className="text-lg font-bold text-white">No Hardening Log Generated Yet</h3>
+        <p className="text-xs text-slate-400 max-w-md mx-auto">
+          Execute a Red Team attack suite first to discover boundary leaks and generate verified surgical patches.
+        </p>
+        {onBackToRedTeam && (
+          <button
+            type="button"
+            onClick={onBackToRedTeam}
+            className="px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-red-300 text-xs font-semibold rounded-xl inline-flex items-center gap-2 transition-all"
+          >
+            Go to Red Team View
+          </button>
+        )}
+      </div>
+    );
+  }
 
   const toggleDiff = (id: string) => {
     setExpandedDiffs(prev => ({ ...prev, [id]: !prev[id] }));

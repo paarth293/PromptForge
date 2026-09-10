@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Wrench,
   Shield,
@@ -24,6 +24,10 @@ import {
   Lock,
   Check,
   Activity,
+  AlertCircle,
+  RotateCcw,
+  Wifi,
+  X
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
@@ -124,6 +128,21 @@ const DEMO_SCORECARD: VerificationScorecardData = {
   created_at: new Date().toISOString()
 };
 
+const SESSION_CACHE_KEY = 'promptforge_active_session_v1';
+
+interface SavedSession {
+  stage: ForgeStage;
+  surface: SurfaceMode;
+  activeTenant: string;
+  pipelineMode: 'forge' | 'audit';
+  promptInput: string;
+  spec: AgentSpecData | null;
+  blueprint: BlueprintInfo | null;
+  hardeningLog: HardeningLogData | null;
+  scorecard: VerificationScorecardData | null;
+  savedAt: string;
+}
+
 export default function HomePage() {
   const [stage, setStage] = useState<ForgeStage>('input');
   const [surface, setSurface] = useState<SurfaceMode>('deploy');
@@ -133,6 +152,14 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedCurl, setCopiedCurl] = useState(false);
+
+  // Resumability & Health Probing State
+  const [savedSessionNotice, setSavedSessionNotice] = useState<SavedSession | null>(null);
+  const [backendHealth, setBackendHealth] = useState<{
+    status: 'idle' | 'probing' | 'online' | 'offline';
+    latencyMs?: number;
+    message?: string;
+  }>({ status: 'idle' });
 
   // Stored state across stages
   const [spec, setSpec] = useState<AgentSpecData | null>(null);
@@ -329,6 +356,154 @@ export default function HomePage() {
     setLoading(false);
   };
 
+  // Session Persistence: restore cached session if found on initial mount
+  useEffect(() => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem(SESSION_CACHE_KEY) : null;
+      if (raw) {
+        const parsed: SavedSession = JSON.parse(raw);
+        if (parsed && (parsed.spec || parsed.blueprint || parsed.scorecard)) {
+          setSavedSessionNotice(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  // Automatically cache active pipeline progress across refresh/disconnect
+  useEffect(() => {
+    if (spec || blueprint || scorecard || hardeningLog) {
+      try {
+        const sessionData: SavedSession = {
+          stage,
+          surface,
+          activeTenant,
+          pipelineMode,
+          promptInput,
+          spec,
+          blueprint,
+          hardeningLog,
+          scorecard,
+          savedAt: new Date().toISOString()
+        };
+        localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(sessionData));
+      } catch {
+        // ignore
+      }
+    }
+  }, [stage, surface, activeTenant, pipelineMode, promptInput, spec, blueprint, hardeningLog, scorecard]);
+
+  const restoreSavedSession = (sess: SavedSession) => {
+    setStage(sess.stage || 'input');
+    setSurface(sess.surface || 'deploy');
+    setActiveTenant(sess.activeTenant || 'tenant-demo');
+    setPipelineMode(sess.pipelineMode || 'forge');
+    setPromptInput(sess.promptInput || '');
+    setSpec(sess.spec);
+    setBlueprint(sess.blueprint);
+    setHardeningLog(sess.hardeningLog);
+    setScorecard(sess.scorecard);
+    setSavedSessionNotice(null);
+    setError(null);
+  };
+
+  const clearSavedSession = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem(SESSION_CACHE_KEY);
+      }
+    } catch {}
+    setSavedSessionNotice(null);
+  };
+
+  const probeBackendHealth = async () => {
+    setBackendHealth({ status: 'probing' });
+    const startTime = performance.now();
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${API_BASE_URL}/health`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      const latencyMs = Math.round(performance.now() - startTime);
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setBackendHealth({
+          status: 'online',
+          latencyMs,
+          message: `Backend reachable (${res.status} OK • ${latencyMs}ms latency • env: ${data.environment || 'local'})`
+        });
+      } else {
+        setBackendHealth({
+          status: 'offline',
+          latencyMs,
+          message: `Backend returned error status ${res.status}`
+        });
+      }
+    } catch (err: any) {
+      setBackendHealth({
+        status: 'offline',
+        message: err.name === 'AbortError' ? 'Probe timed out after 5s' : 'Connection refused / service unreachable'
+      });
+    }
+  };
+
+  const handleRunHardening = async () => {
+    if (!blueprint) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/harden/run/${blueprint.blueprint_id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': activeTenant
+        }
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || 'Hardening loop failed');
+      }
+      const loopResult = await res.json();
+      setHardeningLog(loopResult.hardening_log);
+      setStage('harden');
+    } catch (err: any) {
+      setError(err.message || 'Hardening failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRetryCurrentStage = () => {
+    setError(null);
+    if (stage === 'input' && promptInput) {
+      handleDecompose();
+    } else if (stage === 'confirm_spec' && spec) {
+      handleConfirmSpec(spec);
+    } else if (stage === 'assembling' && spec) {
+      simulateAssemblyProgress(spec.spec_id);
+    } else if (stage === 'verify') {
+      handleRunVerification();
+    } else if (stage === 'harden') {
+      handleRunHardening();
+    }
+  };
+
+  const handleRollbackSafeStage = () => {
+    setError(null);
+    if (stage === 'assembling') {
+      setStage('confirm_spec');
+    } else if (stage === 'verify') {
+      setStage('chat');
+    } else if (stage === 'harden') {
+      setStage('redteam');
+    } else {
+      setStage('input');
+    }
+  };
+
   const handleReset = () => {
     setStage('input');
     setPromptInput('');
@@ -337,6 +512,8 @@ export default function HomePage() {
     setHardeningLog(null);
     setScorecard(null);
     setError(null);
+    setBackendHealth({ status: 'idle' });
+    clearSavedSession();
   };
 
   const handleNavigateStage = (targetStage: ForgeStage) => {
@@ -390,10 +567,130 @@ export default function HomePage() {
 
       {/* Main Content Area */}
       <div className="w-full max-w-5xl flex-1 flex flex-col items-center">
+        {/* Resumable Session Recovery Notice */}
+        {savedSessionNotice && (
+          <div className="w-full mb-6 p-4 rounded-2xl bg-blue-950/40 border border-blue-500/30 text-blue-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400">
+                <Compass className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-bold text-white">Resumable Session Found:</span>{' '}
+                <span className="text-blue-300">
+                  {savedSessionNotice.spec?.agent_name || savedSessionNotice.blueprint?.agent_name || 'Draft Agent'}
+                </span>{' '}
+                <span className="text-slate-400">
+                  (Stage: <code className="text-blue-200 bg-blue-900/50 px-1.5 py-0.5 rounded font-mono text-[11px]">{savedSessionNotice.stage}</code> • {new Date(savedSessionNotice.savedAt).toLocaleTimeString()})
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <button
+                type="button"
+                onClick={() => restoreSavedSession(savedSessionNotice)}
+                className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold flex items-center gap-1.5 shadow transition-all"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Resume Session
+              </button>
+              <button
+                type="button"
+                onClick={clearSavedSession}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rich Resumable Failure State Card */}
         {error && (
-          <div className="w-full mb-6 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
-            <span>⚠️ {error}</span>
-            <button onClick={() => setError(null)} className="text-slate-400 hover:text-white">&times;</button>
+          <div className="w-full mb-6 p-5 rounded-2xl bg-rose-950/30 border border-rose-500/40 text-rose-200 text-xs flex flex-col gap-4 shadow-xl animate-in fade-in duration-200">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 mt-0.5 shrink-0">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="text-sm font-bold text-white">Pipeline Execution Interrupted</h4>
+                    <span className="font-mono text-[10px] uppercase px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                      Stage: {stage}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-rose-300/90 font-mono text-[11px] bg-black/40 p-2.5 rounded-lg border border-rose-900/50 break-words">
+                    {error}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setError(null)}
+                className="p-1 rounded-lg hover:bg-rose-500/20 text-rose-400 hover:text-white transition-all"
+                title="Dismiss error"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Health Probe Status if probed */}
+            {backendHealth.status !== 'idle' && (
+              <div className="flex items-center gap-2 p-2.5 rounded-xl bg-black/30 border border-slate-800 text-[11px]">
+                {backendHealth.status === 'probing' && (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-400" />
+                    <span className="text-slate-300">Probing backend health at {API_BASE_URL}...</span>
+                  </>
+                )}
+                {backendHealth.status === 'online' && (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span className="text-emerald-300 font-medium">{backendHealth.message}</span>
+                  </>
+                )}
+                {backendHealth.status === 'offline' && (
+                  <>
+                    <AlertCircle className="w-3.5 h-3.5 text-rose-400" />
+                    <span className="text-rose-300 font-medium">{backendHealth.message}</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Resumable Action Controls */}
+            <div className="flex items-center justify-between pt-1 border-t border-rose-500/20 flex-wrap gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={handleRetryCurrentStage}
+                  disabled={loading}
+                  className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold flex items-center gap-1.5 transition-all shadow-md disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Retry Current Stage
+                </button>
+                <button
+                  type="button"
+                  onClick={probeBackendHealth}
+                  disabled={backendHealth.status === 'probing'}
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-medium flex items-center gap-1.5 transition-all disabled:opacity-50"
+                >
+                  <Wifi className="w-3.5 h-3.5 text-cyan-400" />
+                  Probe Backend Health
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleRollbackSafeStage}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-[11px] transition-all"
+                >
+                  ← Return to Safe Stage
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -749,53 +1046,31 @@ export default function HomePage() {
               blueprintId={blueprint.blueprint_id}
               agentName={blueprint.agent_name}
               onBackToChat={() => setStage('chat')}
-              onProceedToHardening={async () => {
-                setLoading(true);
-                setError(null);
-                try {
-                  const res = await fetch(`${API_BASE_URL}/api/harden/run/${blueprint.blueprint_id}`, {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      'X-Tenant-ID': activeTenant
-                    }
-                  });
-                  if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.detail || 'Hardening loop failed');
-                  }
-                  const loopResult = await res.json();
-                  setHardeningLog(loopResult.hardening_log);
-                  setStage('harden');
-                } catch (err: any) {
-                  setError(err.message || 'Hardening failed');
-                } finally {
-                  setLoading(false);
-                }
-              }}
+              onProceedToHardening={handleRunHardening}
             />
           </div>
         )}
 
         {/* STAGE 6: Automated Guardrail Hardening Log View */}
-        {stage === 'harden' && blueprint && hardeningLog && (
+        {stage === 'harden' && (
           <div className="w-full animate-in fade-in duration-300">
             <HardeningLogView
               hardeningLog={hardeningLog}
-              agentName={blueprint.agent_name}
+              agentName={blueprint?.agent_name || spec?.agent_name || 'Agent'}
               onBackToRedTeam={() => setStage('redteam')}
               onChatWithHardenedAgent={() => setStage('chat')}
               onProceedToVerification={handleRunVerification}
+              loading={loading}
             />
           </div>
         )}
 
         {/* STAGE 7: Verification Scorecard View */}
-        {stage === 'verify' && blueprint && scorecard && (
+        {stage === 'verify' && (
           <div className="w-full animate-in fade-in duration-300">
             <VerificationScorecardView
               scorecard={scorecard}
-              agentName={blueprint.agent_name}
+              agentName={blueprint?.agent_name || spec?.agent_name || 'Agent'}
               onBackToChat={() => setStage('chat')}
               onBackToHardening={hardeningLog ? () => setStage('harden') : undefined}
               onRerunVerify={handleRunVerification}
