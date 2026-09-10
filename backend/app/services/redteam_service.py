@@ -9,6 +9,7 @@ import httpx
 
 from ..config import settings
 from ..core.concurrent_runner import run_concurrent_sessions
+from ..core.delimiting import delimit_untrusted_input
 from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
 from ..core.judge_assignment import select_judge_model
@@ -373,11 +374,13 @@ class RedTeamService:
             "guardrail_triggered": transcript.guardrail_triggered
         }
         transcript_json = json.dumps(transcript_data, indent=2)
+        safe_transcript_json = delimit_untrusted_input(transcript_json, tag="untrusted_attack_transcript")
+        safe_spec_json = delimit_untrusted_input(spec_json, tag="untrusted_spec")
 
         prompt = self.registry.render(
             "chain_8_attack_judgment",
-            spec_json=spec_json,
-            transcript_json=transcript_json,
+            spec_json=safe_spec_json,
+            transcript_json=safe_transcript_json,
             intended_violation=f"Target: {transcript.target_surface} ({transcript.target_element})"
         )
 

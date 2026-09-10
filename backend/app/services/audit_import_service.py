@@ -1,6 +1,7 @@
-﻿import uuid
+import uuid
 from typing import Any, Dict, List, Optional
 
+from ..core.delimiting import sanitize_delimiters
 from ..core.errors import ValidationException
 from ..db.repository import PipelineRepository
 from ..models.blueprint import AgentBlueprint, ToolSchema
@@ -39,12 +40,15 @@ class AuditImportService:
         agent_id = f"ag-audit-{uuid.uuid4().hex[:8]}"
         spec_id = f"spec-audit-{uuid.uuid4().hex[:8]}"
 
+        safe_agent_name = sanitize_delimiters(agent_name, "untrusted_input")
+        safe_domain = sanitize_delimiters(domain, "untrusted_input")
+
         # Create and persist synthetic spec to back the blueprint
         spec = AgentSpec(
             spec_id=spec_id,
             tenant_id=tenant_id,
-            agent_name=agent_name,
-            domain=domain,
+            agent_name=safe_agent_name,
+            domain=safe_domain,
             raw_description=f"Imported third-party agent from raw prompt ({len(cleaned_prompt)} chars)",
             user_gold_qa=user_gold_qa or [],
             confirmed=True,
@@ -56,7 +60,7 @@ class AuditImportService:
             spec_id=spec_id,
             tenant_id=tenant_id,
             version=1,
-            agent_name=agent_name,
+            agent_name=safe_agent_name,
             system_prompt=cleaned_prompt,
             tools=tools or [],
             guardrails=[],
@@ -87,8 +91,8 @@ class AuditImportService:
         if not instructions or not isinstance(instructions, str) or not instructions.strip():
             raise ValidationException("Import failed: OpenAI config missing 'instructions' field.")
 
-        extracted_name = agent_name or config.get("name") or "Imported OpenAI Assistant"
-        description = config.get("description", "Imported from OpenAI GPT / Assistant export")
+        extracted_name = sanitize_delimiters(agent_name or config.get("name") or "Imported OpenAI Assistant", "untrusted_input")
+        description = sanitize_delimiters(config.get("description", "Imported from OpenAI GPT / Assistant export"), "untrusted_input")
 
         # Map tools
         converted_tools: List[ToolSchema] = []
@@ -174,13 +178,14 @@ class AuditImportService:
         if not instruction or not isinstance(instruction, str) or not instruction.strip():
             raise ValidationException("Import failed: Bedrock agent definition missing 'instruction' field.")
 
-        extracted_name = (
+        raw_name = (
             agent_name
             or config.get("agentName")
             or config.get("agent_name")
             or "Imported Bedrock Agent"
         )
-        description = config.get("description", "Imported Amazon Bedrock Agent")
+        extracted_name = sanitize_delimiters(raw_name, "untrusted_input")
+        description = sanitize_delimiters(config.get("description", "Imported Amazon Bedrock Agent"), "untrusted_input")
 
         # Map action groups into tools
         converted_tools: List[ToolSchema] = []

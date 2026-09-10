@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import List, Optional
 
+from ..core.delimiting import delimit_untrusted_input
 from ..core.errors import BuilderPolicyViolationException
 from ..core.guardrail_prober import validate_guardrail_with_probes
 from ..core.hash_chain import compute_sha256
@@ -55,7 +56,8 @@ class ForgeService:
         Executes Chain 1: Decomposes natural language description into an AgentSpec.
         Validates JSON structure with retry and persists spec to DB.
         """
-        prompt = self.registry.render("chain_1_intent_decomposition", description=description)
+        safe_description = delimit_untrusted_input(description, tag="untrusted_user_description")
+        prompt = self.registry.render("chain_1_intent_decomposition", description=safe_description)
         spec = await execute_chain_with_retry(
             client=self.llm,
             prompt=prompt,
@@ -153,7 +155,7 @@ class ForgeService:
         """
         Executes Chain 2: Synthesizes a 400-800 word CRISPE system prompt based on confirmed spec.
         """
-        spec_json = spec.model_dump_json(indent=2)
+        spec_json = delimit_untrusted_input(spec.model_dump_json(indent=2), tag="untrusted_spec")
         prompt = self.registry.render(
             "chain_2_system_prompt_generation",
             spec_json=spec_json
@@ -177,7 +179,7 @@ class ForgeService:
         """
         Executes Chain 3: Generates OpenAI-compatible function calling schemas with endpoint bindings.
         """
-        spec_json = spec.model_dump_json(indent=2)
+        spec_json = delimit_untrusted_input(spec.model_dump_json(indent=2), tag="untrusted_spec")
         prompt = self.registry.render(
             "chain_3_tool_schema_generation",
             spec_json=spec_json
@@ -201,7 +203,7 @@ class ForgeService:
         Executes Chain 4: Generates 10–18 guardrails in two layers (middleware & semantic)
         and validates every guardrail with 3 positive + 3 negative unit probes.
         """
-        spec_json = spec.model_dump_json(indent=2)
+        spec_json = delimit_untrusted_input(spec.model_dump_json(indent=2), tag="untrusted_spec")
         prompt = self.registry.render(
             "chain_4_guardrail_generation",
             spec_json=spec_json
@@ -239,7 +241,7 @@ class ForgeService:
         Executes Chain 5: Generates 5 canonical few-shot exemplar conversations
         (happy_path, edge_case, adversarial_block, tool_use, escalation).
         """
-        spec_json = spec.model_dump_json(indent=2)
+        spec_json = delimit_untrusted_input(spec.model_dump_json(indent=2), tag="untrusted_spec")
         prompt = self.registry.render(
             "chain_5_few_shot_generation",
             spec_json=spec_json

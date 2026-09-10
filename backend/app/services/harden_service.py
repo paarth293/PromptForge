@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Union
 
+from ..core.delimiting import delimit_untrusted_input
 from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
 from ..core.prompt_registry import get_prompt_registry
@@ -84,14 +85,16 @@ class HardenService:
             formatted_failing.append(d)
 
         failing_attacks_json = json.dumps(formatted_failing, indent=2, default=str)
+        safe_failing_json = delimit_untrusted_input(failing_attacks_json, tag="untrusted_failing_attacks")
+        safe_spec_json = delimit_untrusted_input(spec_json, tag="untrusted_spec")
 
         prompt = self.registry.render(
             "chain_9_guardrail_patcher",
-            spec_json=spec_json,
+            spec_json=safe_spec_json,
             current_system_prompt=current_system_prompt,
             current_guardrails_json=current_guardrails_json,
             current_tools_json=current_tools_json,
-            failing_attacks_json=failing_attacks_json,
+            failing_attacks_json=safe_failing_json,
         )
 
         output = await execute_chain_with_retry(

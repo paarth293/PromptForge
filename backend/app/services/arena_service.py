@@ -6,6 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
+from ..core.delimiting import delimit_untrusted_input
 from ..core.hash_chain import compute_sha256
 from ..core.json_validator import execute_chain_with_retry
 from ..core.judge_assignment import select_judge_model
@@ -258,11 +259,13 @@ class ArenaService:
             ),
         }
         transcript_json = json.dumps(transcript_data, indent=2)
+        safe_transcript_json = delimit_untrusted_input(transcript_json, tag="untrusted_attack_transcript")
+        safe_spec_json = delimit_untrusted_input(spec_json, tag="untrusted_spec")
 
         prompt = self.registry.render(
             "chain_8_attack_judgment",
-            spec_json=spec_json,
-            transcript_json=transcript_json,
+            spec_json=safe_spec_json,
+            transcript_json=safe_transcript_json,
             intended_violation=transcript.adversarial_goal,
         )
 
@@ -651,7 +654,7 @@ class ArenaService:
             target_blocked = target_res.blocked
 
             if target_res.blocked:
-                defense_action = f"policy_refusal: {target_res.policy_triggered or target_res.guardrail_triggered or 'guardrail_block'}"
+                defense_action = "policy_refusal"
             elif any(tc.middleware_blocked for tc in target_res.tool_calls):
                 defense_action = "middleware_tool_block"
             elif any(

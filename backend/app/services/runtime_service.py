@@ -4,6 +4,7 @@ import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..core.api_executor import ApiExecutionRequest, ApiExecutor, get_api_executor
+from ..core.delimiting import delimit_tool_return, delimit_user_chat_input
 from ..core.policy_middleware import PolicyEnforcementMiddleware, get_policy_middleware
 from ..core.stripe_tool import StripeRefundAdapter
 from ..db.repository import PipelineRepository
@@ -441,8 +442,7 @@ class AgentRuntimeService:
                     policy_triggered="tool_policy_violation"
                 )
 
-            notice_title = "Live Tool Execution" if tool_call.is_live_call else "Simulated Tool Execution"
-            tool_context_str = f"\n[{notice_title}: {tool_call.tool_name}({tool_call.parameters}) -> {tool_call.output}]"
+            tool_context_str = delimit_tool_return(tool_call.tool_name, tool_call.parameters, tool_call.output)
 
         # 3. Formulate Prompt and LLM Conversation
         messages: List[LLMMessage] = [
@@ -451,9 +451,11 @@ class AgentRuntimeService:
         for past in request.history:
             messages.append(LLMMessage(role=past.role, content=past.content))
 
-        final_user_content = sanitized_text
+        delimited_user = delimit_user_chat_input(sanitized_text)
         if tool_context_str:
-            final_user_content += f"\n\nSystem Notice for Assistant:{tool_context_str}\nExplain the result clearly and helpfully to the user based on your persona."
+            final_user_content = f"{tool_context_str}\n\n{delimited_user}"
+        else:
+            final_user_content = delimited_user
 
         messages.append(LLMMessage(role="user", content=final_user_content))
 
