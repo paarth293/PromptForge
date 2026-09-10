@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import math
@@ -172,15 +173,19 @@ class RedTeamService:
             ow_model = settings.ollama_model if ollama_active else f"{settings.ollama_model}-mock-fallback"
             personas.append(("Open-Weight Local Attacker", "unseen_distribution_probe", ow_model))
 
-        campaign_attacks: List[GeneratedAttackCase] = []
-        for persona_name, cat, persona_model in personas:
-            attacks = await self.generate_attacks_for_persona(
+        # Concurrently generate attacks across all personas to meet ~15–25s target
+        persona_results = await asyncio.gather(*(
+            self.generate_attacks_for_persona(
                 blueprint=blueprint,
                 persona=persona_name,
                 category=cat,
                 count=attacks_per_persona,
-                model=persona_model
+                model=persona_model,
             )
+            for persona_name, cat, persona_model in personas
+        ))
+        campaign_attacks: List[GeneratedAttackCase] = []
+        for attacks in persona_results:
             campaign_attacks.extend(attacks)
 
         logger.info(
@@ -299,7 +304,7 @@ class RedTeamService:
         self,
         blueprint: AgentBlueprint,
         attacks: List[GeneratedAttackCase],
-        concurrency: int = 8,
+        concurrency: int = 10,
         runtime_service: Optional[AgentRuntimeService] = None,
         on_progress: Optional[Callable[[int, ExecutedAttackTranscript], None]] = None
     ) -> AsyncGenerator[Tuple[int, ExecutedAttackTranscript], None]:
@@ -326,7 +331,7 @@ class RedTeamService:
         self,
         blueprint: AgentBlueprint,
         attacks: List[GeneratedAttackCase],
-        concurrency: int = 8,
+        concurrency: int = 10,
         runtime_service: Optional[AgentRuntimeService] = None
     ) -> List[ExecutedAttackTranscript]:
         """
@@ -433,7 +438,7 @@ class RedTeamService:
         blueprint: AgentBlueprint,
         transcripts: List[ExecutedAttackTranscript],
         generator_model: str = "gpt-4o",
-        concurrency: int = 8
+        concurrency: int = 10
     ) -> List[AttackVerdict]:
         """
         Judges a batch of attack transcripts concurrently using the concurrent runner.
@@ -586,7 +591,7 @@ class RedTeamService:
         attacks_per_persona: int = 3,
         generator_model: str = "gpt-4o",
         include_ollama: bool = True,
-        concurrency: int = 8,
+        concurrency: int = 10,
         cross_check_sample_rate: float = 0.20
     ) -> RedTeamReport:
         """
@@ -637,7 +642,7 @@ class RedTeamService:
         attacks_per_persona: int = 3,
         generator_model: str = "gpt-4o",
         include_ollama: bool = True,
-        concurrency: int = 8,
+        concurrency: int = 10,
         cross_check_sample_rate: float = 0.20
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """

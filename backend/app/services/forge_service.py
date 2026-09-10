@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import uuid
@@ -280,17 +281,13 @@ class ForgeService:
         6. Compute blueprint hash
         7. Persist blueprint in database
         """
-        # 1. Chain 2: System Prompt
-        sys_prompt_output = await self.generate_system_prompt(spec, model=model)
-
-        # 2. Chain 3: Tool Schemas
-        tools = await self.generate_tools(spec, model=model)
-
-        # 3. Chain 4: Two-layer Guardrails
-        guardrails = await self.generate_guardrails(spec, model=model)
-
-        # 4. Chain 5: Few-Shot Examples
-        few_shots = await self.generate_few_shot_examples(spec, model=model)
+        # Parallelize execution of Chains 2–5 via asyncio.gather to meet the ~10–15s Forge timing target
+        sys_prompt_output, tools, guardrails, few_shots = await asyncio.gather(
+            self.generate_system_prompt(spec, model=model),
+            self.generate_tools(spec, model=model),
+            self.generate_guardrails(spec, model=model),
+            self.generate_few_shot_examples(spec, model=model),
+        )
 
         # 5. Fold few-shot examples into the system prompt
         exemplars_block = format_few_shot_examples_block(few_shots)

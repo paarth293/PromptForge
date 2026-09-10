@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
@@ -403,22 +404,18 @@ async def run_verification_endpoint(
 
     service = VerifyService(repo=repo)
 
-    # 1. Chain 10: Ground truth
-    gt_res = await service.evaluate_ground_truth(blueprint=bp, spec=spec)
-
-    # 2. Chain 11: Consistency (5 runs)
+    # Parallelize Chains 10, 11, 12 Part 1, 12 Part 2 to meet the ~10–15s Verify timing target
     task_prompt = (
         spec.user_gold_qa[0]["question"]
         if spec.user_gold_qa
         else "Check order status and tracking details"
     )
-    con_res = await service.evaluate_consistency(blueprint=bp, task_prompt=task_prompt, num_runs=5)
-
-    # 3. Chain 12 Part 1: Goal completion journeys
-    goal_res = await service.evaluate_goal_completion(blueprint=bp)
-
-    # 4. Chain 12 Part 2: Alignment audit
-    audit_res = await service.audit_alignment(blueprint=bp, spec=spec)
+    gt_res, con_res, goal_res, audit_res = await asyncio.gather(
+        service.evaluate_ground_truth(blueprint=bp, spec=spec),
+        service.evaluate_consistency(blueprint=bp, task_prompt=task_prompt, num_runs=5),
+        service.evaluate_goal_completion(blueprint=bp),
+        service.audit_alignment(blueprint=bp, spec=spec),
+    )
 
     # 5. Red team survival score from latest report
     report = await repo.get_latest_redteam_report_by_blueprint(blueprint_id)
