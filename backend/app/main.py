@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -63,6 +63,7 @@ from .models.monitor import (
 from .services.arena_service import ArenaService
 from .services.audit_import_service import AuditImportService
 from .services.audit_pipeline_service import AuditPipelineService
+from .services.audit_service import AuditTrailService
 from .services.certificate_service import CertificateService
 from .services.deployment_service import DeploymentService
 from .services.dossier_service import DossierService
@@ -72,6 +73,7 @@ from .services.harden_service import HardenService
 from .services.monitor_service import MonitorService
 from .services.redteam_service import RedTeamService
 from .services.runtime_service import AgentRuntimeService
+from .services.shield_service import ShieldService
 from .services.verify_service import VerifyService
 
 setup_logging()
@@ -154,6 +156,20 @@ async def seed_demo_profile_endpoint(
 
     blueprint = profile.to_blueprint(tenant_id=tenant_id)
     await repo.save_blueprint(blueprint)
+
+    # Generate and persist SHIELD policy for runtime middleware gates B, D, E
+    try:
+        shield_svc = ShieldService(repo=repo)
+        await shield_svc.generate_policy(spec=spec, blueprint=blueprint, persist=True)
+    except Exception:
+        pass
+
+    # Record Forge complete milestone in cryptographic hash chain
+    try:
+        audit_svc = AuditTrailService(repo=repo)
+        await audit_svc.record_forge_complete(blueprint)
+    except Exception:
+        pass
 
     return {
         "status": "seeded",
@@ -252,6 +268,37 @@ async def get_blueprint_endpoint(
     verify_tenant_access(bp.tenant_id, tenant_id)
     return bp
 
+@app.get("/api/blueprints", response_model=List[AgentBlueprint])
+async def list_blueprints_endpoint(
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    """Lists all assembled agent blueprints scoped to the requesting tenant."""
+    repo = PipelineRepository()
+    return await repo.list_blueprints(tenant_id=tenant_id)
+
+@app.get("/api/blueprints/{blueprint_id}/chain")
+async def get_blueprint_hash_chain_endpoint(
+    blueprint_id: str,
+    tenant_id: str = Depends(get_current_tenant_id)
+):
+    """Step 108/Runbook: Inspect and verify cryptographic audit hash chain integrity."""
+    repo = PipelineRepository()
+    bp = await repo.get_blueprint(blueprint_id)
+    if not bp:
+        raise HTTPException(status_code=404, detail="Blueprint not found")
+    verify_tenant_access(bp.tenant_id, tenant_id)
+
+    audit_service = AuditTrailService(repo=repo)
+    events = await audit_service.get_audit_trail(blueprint_id)
+    is_valid, failed_index, error_msg = await audit_service.verify_audit_trail(blueprint_id)
+    return {
+        "valid": is_valid,
+        "chain_length": len(events),
+        "invalid_at_block": failed_index,
+        "reason": error_msg,
+        "events": [e.model_dump() for e in events]
+    }
+
 # Minimal Agent Runtime Chat Endpoint
 @app.post("/api/agents/{blueprint_id}/chat", response_model=ChatResponse)
 async def agent_chat_endpoint(
@@ -309,13 +356,15 @@ async def stream_redteam_campaign_endpoint(
     include_ollama: bool = True,
     concurrency: int = 8,
     cross_check_sample_rate: float = 0.20,
-    tenant_id: str = Depends(get_current_tenant_id)
+    tenant_id: Optional[str] = Query(default=None),
+    header_tenant_id: str = Depends(get_current_tenant_id)
 ):
     repo = PipelineRepository()
     bp = await repo.get_blueprint(blueprint_id)
     if not bp:
         raise HTTPException(status_code=404, detail="Blueprint not found")
-    verify_tenant_access(bp.tenant_id, tenant_id)
+    effective_tenant = tenant_id.strip() if (tenant_id and tenant_id.strip()) else header_tenant_id
+    verify_tenant_access(bp.tenant_id, effective_tenant)
 
     service = RedTeamService(repo=repo)
 

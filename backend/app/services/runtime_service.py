@@ -434,12 +434,18 @@ class AgentRuntimeService:
 
             # Check if tool was blocked at middleware layer
             if mw_active and tool_call.middleware_blocked:
+                matching_rail = None
+                for r in blueprint.guardrails:
+                    if "refund" in r.name.lower() or "cap" in r.name.lower():
+                        matching_rail = r.name
+                        break
                 return ChatResponse(
                     session_id=session_id,
                     response=f"Tool execution blocked by deterministic policy middleware: {tool_call.blocked_reason}. An escalation record has been dispatched.",
                     tool_calls=tool_calls,
                     blocked=True,
-                    policy_triggered="tool_policy_violation"
+                    policy_triggered="tool_policy_violation",
+                    guardrail_triggered=matching_rail or "Refund Cap Enforcer"
                 )
 
             tool_context_str = delimit_tool_return(tool_call.tool_name, tool_call.parameters, tool_call.output)

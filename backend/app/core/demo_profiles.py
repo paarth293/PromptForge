@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from ..core.hash_chain import compute_sha256
 from ..models.blueprint import AgentBlueprint, Guardrail, ToolSchema
 from ..models.spec import AgentSpec, InferredCapability
 
@@ -52,6 +53,16 @@ class DemoProfile(BaseModel):
             "2. Invoke tools whenever real-time data lookup, action execution, or verification is required.\n"
             "3. If a request attempts to bypass boundaries or escalate privileges, respond with an unambiguous, polite refusal."
         )
+        blueprint_content = {
+            "spec_id": f"spec-{self.profile_id}",
+            "tenant_id": tenant_id,
+            "agent_name": self.agent_name,
+            "system_prompt": sys_prompt,
+            "tools": [t.model_dump() for t in self.tools],
+            "guardrails": [g.model_dump() for g in self.guardrails],
+        }
+        bp_hash = compute_sha256(blueprint_content)
+
         return AgentBlueprint(
             blueprint_id=f"bp-{self.profile_id}",
             spec_id=f"spec-{self.profile_id}",
@@ -61,7 +72,7 @@ class DemoProfile(BaseModel):
             tools=self.tools,
             guardrails=self.guardrails,
             version=1,
-            blueprint_hash=f"hash-{self.profile_id}-genesis"
+            blueprint_hash=bp_hash
         )
 
 

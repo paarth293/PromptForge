@@ -62,6 +62,7 @@ export interface RedTeamReportData {
 interface RedTeamFeedProps {
   blueprintId: string;
   agentName: string;
+  tenantId?: string;
   onBackToChat?: () => void;
   onProceedToHardening?: (report: RedTeamReportData) => void;
 }
@@ -69,6 +70,7 @@ interface RedTeamFeedProps {
 export default function RedTeamFeed({
   blueprintId,
   agentName,
+  tenantId = 'tenant-demo',
   onBackToChat,
   onProceedToHardening
 }: RedTeamFeedProps) {
@@ -108,7 +110,7 @@ export default function RedTeamFeed({
     setCurrentStage('generating');
 
     try {
-      const sseUrl = `${API_BASE_URL}/api/redteam/stream/${blueprintId}?attacks_per_persona=3&concurrency=8`;
+      const sseUrl = `${API_BASE_URL}/api/redteam/stream/${blueprintId}?attacks_per_persona=3&concurrency=8&tenant_id=${encodeURIComponent(tenantId)}`;
       const es = new EventSource(sseUrl);
       eventSourceRef.current = es;
 
@@ -159,7 +161,7 @@ export default function RedTeamFeed({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Tenant-ID': 'tenant-demo'
+          'X-Tenant-ID': tenantId
         },
         body: JSON.stringify({ attacks_per_persona: 3, concurrency: 8 })
       });

@@ -57,11 +57,11 @@ def _section(title: str) -> None:
 
 
 async def probe_health(client: httpx.AsyncClient) -> bool:
-    """GET /api/health — confirm backend is up and services are registered."""
+    """GET /health — confirm backend is up and services are registered."""
     _section("Health check")
     t0 = time.monotonic()
     try:
-        r = await client.get("/api/health")
+        r = await client.get("/health")
         elapsed = (time.monotonic() - t0) * 1000
         if r.status_code == 200:
             data = r.json()
@@ -82,9 +82,13 @@ async def probe_demo_profiles(client: httpx.AsyncClient) -> dict[str, Any] | Non
         r = await client.get("/api/demo/profiles")
         if r.status_code == 200:
             profiles = r.json()
+            loaded: dict[str, Any] = {}
             for p in profiles:
-                _ok(f"Profile loaded: {p.get('id', '?')}  —  {p.get('name', '?')}")
-            return {p["id"]: p for p in profiles}
+                p_id = p.get("profile_id") or p.get("id", "?")
+                p_name = p.get("agent_name") or p.get("name", "?")
+                _ok(f"Profile loaded: {p_id}  —  {p_name}")
+                loaded[p_id] = p
+            return loaded
         else:
             _fail(f"Demo profiles returned HTTP {r.status_code}")
             return None
@@ -97,7 +101,10 @@ async def probe_forge_pipeline(client: httpx.AsyncClient, profile_id: str) -> st
     """POST /api/demo/seed/{profile_id} — seed spec + blueprint, return blueprint_id."""
     _section(f"Forge pipeline (profile={profile_id})")
     try:
-        r = await client.post(f"/api/demo/seed/{profile_id}")
+        r = await client.post(
+            f"/api/demo/seed/{profile_id}",
+            headers={"X-Tenant-ID": "tenant-demo"}
+        )
         if r.status_code == 200:
             data = r.json()
             blueprint_id = data.get("blueprint_id")
@@ -118,7 +125,11 @@ async def probe_runtime_chat(client: httpx.AsyncClient, blueprint_id: str) -> bo
     _section("Runtime chat (LLM warm-up)")
     payload = {"message": "Hello, I need help with my order.", "session_id": "warmup-session"}
     try:
-        r = await client.post(f"/api/agents/{blueprint_id}/chat", json=payload)
+        r = await client.post(
+            f"/api/agents/{blueprint_id}/chat",
+            json=payload,
+            headers={"X-Tenant-ID": "tenant-demo"}
+        )
         if r.status_code == 200:
             data = r.json()
             reply = data.get("response", "")[:80]
@@ -133,10 +144,10 @@ async def probe_runtime_chat(client: httpx.AsyncClient, blueprint_id: str) -> bo
 
 
 async def probe_cost_report(client: httpx.AsyncClient) -> bool:
-    """GET /api/cost/report — pre-warm the cost instrumentation singleton."""
+    """GET /api/metrics/cost — pre-warm the cost instrumentation singleton."""
     _section("Cost instrumentation")
     try:
-        r = await client.get("/api/cost/report")
+        r = await client.get("/api/metrics/cost", headers={"X-Tenant-ID": "tenant-demo"})
         if r.status_code == 200:
             data = r.json()
             total = data.get("total_cost_usd", 0)
@@ -154,7 +165,10 @@ async def probe_hash_chain(client: httpx.AsyncClient, blueprint_id: str) -> bool
     """GET /api/blueprints/{blueprint_id}/chain — verify hash chain integrity pre-demo."""
     _section("Hash chain integrity")
     try:
-        r = await client.get(f"/api/blueprints/{blueprint_id}/chain")
+        r = await client.get(
+            f"/api/blueprints/{blueprint_id}/chain",
+            headers={"X-Tenant-ID": "tenant-demo"}
+        )
         if r.status_code == 200:
             data = r.json()
             valid = data.get("valid", False)

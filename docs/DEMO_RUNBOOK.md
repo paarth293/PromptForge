@@ -170,7 +170,8 @@ Expected warm-up output: `✓ All warm-up probes passed — system ready for dem
 
 **Backup demo option:** If the audience wants to see the Lead Qualifier profile, use the warm-up seeded blueprint:
 ```bash
-curl -X POST http://localhost:8000/api/demo/seed/lead_qualifier
+curl -X POST http://localhost:8000/api/demo/seed/lead-qualifier \
+  -H "X-Tenant-ID: tenant-demo"
 ```
 
 ---
@@ -199,7 +200,8 @@ cd frontend && rm -rf .next && npm run build && npm run start
 ### Hash chain invalid after seeding
 ```bash
 # Re-seed the profile to regenerate a clean chain
-curl -X POST http://localhost:8000/api/demo/seed/customer_support
+curl -X POST http://localhost:8000/api/demo/seed/customer-support \
+  -H "X-Tenant-ID: tenant-demo"
 ```
 
 ### Scorecard not appearing

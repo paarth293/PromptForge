@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from app.db.migrator import run_migrations
 from app.db.repository import PipelineRepository
 from app.models.blueprint import AgentBlueprint, Guardrail, ToolSchema

@@ -161,6 +161,19 @@ export default function HomePage() {
     message?: string;
   }>({ status: 'idle' });
 
+  // Deployment & Certificate State
+  const [deploying, setDeploying] = useState(false);
+  const [deploymentResult, setDeploymentResult] = useState<{
+    package?: any;
+    certificate?: any;
+    error?: string;
+  } | null>(null);
+
+  // Cost Ledger State
+  const [showCostLedger, setShowCostLedger] = useState(false);
+  const [costReport, setCostReport] = useState<any | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
+
   // Stored state across stages
   const [spec, setSpec] = useState<AgentSpecData | null>(null);
   const [blueprint, setBlueprint] = useState<BlueprintInfo | null>(null);
@@ -513,7 +526,90 @@ export default function HomePage() {
     setScorecard(null);
     setError(null);
     setBackendHealth({ status: 'idle' });
+    setDeploymentResult(null);
     clearSavedSession();
+  };
+
+  // Keyboard Shortcuts (Ctrl+Shift+R: Reset, Ctrl+Shift+D: Load Demo Fixture, Ctrl+Shift+W: Probe Health)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey) {
+        if (e.key === 'R' || e.key === 'r') {
+          e.preventDefault();
+          handleReset();
+        } else if (e.key === 'D' || e.key === 'd') {
+          e.preventDefault();
+          setSpec(DEMO_SPEC);
+          setBlueprint(DEMO_BLUEPRINT);
+          setHardeningLog(DEMO_HARDENING_LOG);
+          setScorecard(DEMO_SCORECARD);
+        } else if (e.key === 'W' || e.key === 'w') {
+          e.preventDefault();
+          probeBackendHealth();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  const handleDeployAgent = async () => {
+    const bpId = blueprint?.blueprint_id || 'bp-customer-support';
+    setDeploying(true);
+    setDeploymentResult(null);
+    try {
+      const deployRes = await fetch(`${API_BASE_URL}/api/deploy/agents/${bpId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': activeTenant
+        }
+      });
+      if (!deployRes.ok) {
+        const errData = await deployRes.json().catch(() => ({}));
+        throw new Error(errData.detail || `Deploy failed with status ${deployRes.status}`);
+      }
+      const pkg = await deployRes.json();
+
+      let cert = null;
+      try {
+        const certRes = await fetch(`${API_BASE_URL}/api/deploy/certificate/generate/${bpId}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Tenant-ID': activeTenant
+          }
+        });
+        if (certRes.ok) {
+          cert = await certRes.json();
+        }
+      } catch (certErr) {
+        console.warn('Certificate generation note:', certErr);
+      }
+
+      setDeploymentResult({ package: pkg, certificate: cert });
+    } catch (err: any) {
+      setDeploymentResult({ error: err.message || 'Agent deployment failed' });
+    } finally {
+      setDeploying(false);
+    }
+  };
+
+  const fetchCostReport = async () => {
+    setCostLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/metrics/cost`, {
+        headers: { 'X-Tenant-ID': activeTenant }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCostReport(data);
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setCostLoading(false);
+    }
   };
 
   const handleNavigateStage = (targetStage: ForgeStage) => {
@@ -827,11 +923,37 @@ export default function HomePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleNavigateStage('monitor')}
-                  className="px-3 py-1.5 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-teal-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  onClick={() => {
+                    const next = !showCostLedger;
+                    setShowCostLedger(next);
+                    if (next) fetchCostReport();
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                    showCostLedger
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                  }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
-                  Drift Telemetry
+                  Cost Ledger
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeployAgent}
+                  disabled={deploying}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all"
+                >
+                  {deploying ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-3.5 h-3.5" />
+                      Deploy Agent
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -875,6 +997,128 @@ export default function HomePage() {
                 </button>
               </div>
             </div>
+
+            {/* Deployment Result & Birth Certificate Card */}
+            {deploymentResult && (
+              <div className="p-4 bg-[#0A111E] border border-emerald-500/30 rounded-xl space-y-3 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span className="font-bold text-white">Agent Successfully Deployed</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-mono text-[10px]">
+                      LIVE
+                    </span>
+                  </div>
+                  {deploymentResult.package && (
+                    <a
+                      href={`/agents/${deploymentResult.package.agent_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-cyan-400 hover:underline flex items-center gap-1 text-[11px]"
+                    >
+                      Open Live Agent View <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+
+                {deploymentResult.package && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div className="p-2 bg-black/40 rounded border border-slate-800 text-slate-300">
+                      <span className="text-slate-500">Agent ID: </span>
+                      <span className="text-white font-semibold">{deploymentResult.package.agent_id}</span>
+                    </div>
+                    <div className="p-2 bg-black/40 rounded border border-slate-800 text-slate-300">
+                      <span className="text-slate-500">Endpoint: </span>
+                      <span className="text-cyan-300">{deploymentResult.package.endpoint_url || `/api/deploy/agents/${deploymentResult.package.agent_id}/chat`}</span>
+                    </div>
+                  </div>
+                )}
+
+                {deploymentResult.certificate && (
+                  <div className="p-3 bg-indigo-950/20 border border-indigo-500/30 rounded-lg space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-indigo-300 flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-indigo-400" />
+                        Birth Certificate Issued: {deploymentResult.certificate.certificate_id}
+                      </span>
+                      <span className="text-[10px] text-indigo-400 font-mono">
+                        Algorithm: SHA-256
+                      </span>
+                    </div>
+                    <div className="text-[11px] font-mono text-indigo-200/80 break-all">
+                      <span className="text-slate-500">Fingerprint: </span>
+                      {deploymentResult.certificate.composite_fingerprint}
+                    </div>
+                  </div>
+                )}
+
+                {deploymentResult.error && (
+                  <div className="p-2.5 bg-red-950/30 border border-red-500/30 rounded text-red-300 text-[11px]">
+                    {deploymentResult.error}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Cost Ledger Drawer */}
+            {showCostLedger && (
+              <div className="p-4 bg-[#0A101D] border border-amber-500/30 rounded-xl space-y-3 text-xs animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-amber-400" />
+                    <span className="font-bold text-white">Pipeline Token & Cost Ledger</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={fetchCostReport}
+                    disabled={costLoading}
+                    className="text-[11px] text-amber-400 hover:underline flex items-center gap-1"
+                  >
+                    <RefreshCw className={`w-3 h-3 ${costLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </button>
+                </div>
+
+                {costReport ? (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <div className="p-2.5 bg-black/40 rounded border border-slate-800">
+                        <div className="text-[10px] text-slate-500">Total Cost (USD)</div>
+                        <div className="text-sm font-bold text-amber-400 font-mono">${costReport.total_cost_usd?.toFixed(4) || '0.0000'}</div>
+                      </div>
+                      <div className="p-2.5 bg-black/40 rounded border border-slate-800">
+                        <div className="text-[10px] text-slate-500">Prompt Tokens</div>
+                        <div className="text-sm font-bold text-slate-200 font-mono">{costReport.total_prompt_tokens?.toLocaleString() || '0'}</div>
+                      </div>
+                      <div className="p-2.5 bg-black/40 rounded border border-slate-800">
+                        <div className="text-[10px] text-slate-500">Completion Tokens</div>
+                        <div className="text-sm font-bold text-slate-200 font-mono">{costReport.total_completion_tokens?.toLocaleString() || '0'}</div>
+                      </div>
+                      <div className="p-2.5 bg-black/40 rounded border border-slate-800">
+                        <div className="text-[10px] text-slate-500">Total Tokens</div>
+                        <div className="text-sm font-bold text-emerald-400 font-mono">{costReport.total_tokens?.toLocaleString() || '0'}</div>
+                      </div>
+                    </div>
+                    {costReport.stage_breakdown && Object.keys(costReport.stage_breakdown).length > 0 && (
+                      <div className="pt-2 border-t border-slate-800/80">
+                        <div className="text-[10px] uppercase font-bold text-slate-400 mb-1">Stage Cost Breakdown:</div>
+                        <div className="flex flex-wrap gap-2">
+                          {Object.entries(costReport.stage_breakdown).map(([st, c]: [string, any]) => (
+                            <span key={st} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-[10px] text-slate-300">
+                              {st}: <strong className="text-amber-300">${typeof c === 'number' ? c.toFixed(4) : c}</strong>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-slate-400 text-center py-2">
+                    {costLoading ? 'Loading cost metrics...' : 'Click refresh to load cumulative run costs.'}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1045,6 +1289,7 @@ export default function HomePage() {
             <RedTeamFeed
               blueprintId={blueprint.blueprint_id}
               agentName={blueprint.agent_name}
+              tenantId={activeTenant}
               onBackToChat={() => setStage('chat')}
               onProceedToHardening={handleRunHardening}
             />
@@ -1084,6 +1329,7 @@ export default function HomePage() {
           <div className="w-full animate-in fade-in duration-300">
             <DeepForgeLineageViewer
               specId={spec?.spec_id}
+              tenantId={activeTenant}
               onSelectChampion={(championCand) => {
                 if (blueprint) {
                   setBlueprint({
@@ -1113,7 +1359,10 @@ export default function HomePage() {
         {/* STAGE 10: DOSSIER Verifiable Employment Record */}
         {stage === 'dossier' && (
           <div className="w-full animate-in fade-in duration-300">
-            <DossierView agentId={blueprint?.blueprint_id} />
+            <DossierView
+              agentId={blueprint?.blueprint_id}
+              tenantId={activeTenant}
+            />
           </div>
         )}
 

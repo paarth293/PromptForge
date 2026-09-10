@@ -293,12 +293,14 @@ export const DEMO_PRE_RUN_LINEAGE: EvolveLineageLogData = {
 interface DeepForgeLineageViewerProps {
   initialLog?: EvolveLineageLogData | null;
   specId?: string;
+  tenantId?: string;
   onSelectChampion?: (candidate: EvolveCandidateData) => void;
 }
 
 export default function DeepForgeLineageViewer({
   initialLog,
   specId,
+  tenantId = 'tenant-demo',
   onSelectChampion,
 }: DeepForgeLineageViewerProps) {
   const [log, setLog] = useState<EvolveLineageLogData>(initialLog || DEMO_PRE_RUN_LINEAGE);
@@ -315,7 +317,9 @@ export default function DeepForgeLineageViewer({
   // Load from API if specId provided
   const fetchLineage = async (targetSpecId: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/evolve/lineage/${targetSpecId}`);
+      const res = await fetch(`${API_BASE_URL}/api/evolve/lineage/${targetSpecId}`, {
+        headers: { 'X-Tenant-ID': tenantId },
+      });
       if (res.ok) {
         const data = await res.json();
         setLog(data);
@@ -334,7 +338,10 @@ export default function DeepForgeLineageViewer({
     try {
       const res = await fetch(`${API_BASE_URL}/api/evolve/run`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Tenant-ID': tenantId,
+        },
         body: JSON.stringify({
           spec_id: specId || log.spec_id,
           population_size: 6,

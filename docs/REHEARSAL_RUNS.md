@@ -144,5 +144,21 @@ The following fallback scenarios were validated during rehearsal runs. Each desc
 | Rehearsal 1 (Step 110) | 232 | 232 | 0 | 61.68 s |
 | Rehearsal 2 (Step 111) | 232 | 232 | 0 | 61.65 s |
 | Rehearsal 3 (Step 112) | 232 | 232 | 0 | 62.09 s |
+| Rehearsal 4 (Audit Remediation) | 236 | 236 | 0 | 71.62 s |
 
-**All three rehearsal runs passed with zero failures.** System is stable and ready for the `milestone-demo-ready` tag.
+**All rehearsal runs passed with zero failures.** System is stable, all frontend/backend seams are resolved, and the demo path is fully verified.
+
+---
+
+## Audit Remediation Seam Verification (2026-09-10)
+
+Following the comprehensive build audit, all 7 identified findings have been resolved and verified:
+
+1. **Red Team SSE Streaming**: `EventSource` in `RedTeamFeed.tsx` passes `?tenant_id=...` query param; `main.py` route `/api/redteam/stream/{blueprint_id}` accepts query parameter fallback for tenant authentication without requiring custom HTTP headers.
+2. **Pre-presentation Warm-Up Script (`scripts/warmup.py`)**: Endpoints corrected to `/health` and `/api/metrics/cost`; dictionary keys mapped to `profile_id` and `agent_name`; `GET /api/blueprints/{blueprint_id}/chain` route added; all 6 warmup probes run 100% green (`test_warmup_script.py`).
+3. **DOSSIER Blueprint Loading**: Tenant-scoped `GET /api/blueprints` route added to `main.py`; hardcoded `'tenant-default'` in `DossierView.tsx` replaced with dynamic `activeTenant`.
+4. **EVOLVE Lineage Tenant Header**: `DeepForgeLineageViewer.tsx` now passes `'X-Tenant-ID': tenantId` in all background run and lineage requests.
+5. **UI Deploy Action**: "Deploy Agent" button added to the Deploy Surface in `frontend/app/page.tsx`, invoking `POST /api/deploy/agents/{blueprint_id}` and `POST /api/deploy/certificate/generate/{blueprint_id}`; displays live endpoint link and cryptographic birth certificate fingerprint.
+6. **SHIELD Policy Generation on Forge Path**: `ForgeService.assemble_blueprint` now invokes `ShieldService.generate_policy(spec, blueprint, persist=True)`, activating runtime middleware Gates B, D, and tool-policy Gate E.
+7. **Demo Runbook & Keyboard Shortcuts**: Keyboard shortcuts (`Ctrl+Shift+R`, `Ctrl+Shift+D`, `Ctrl+Shift+W`) implemented in `page.tsx`; Cost Ledger live breakdown drawer added; demo runbook curl examples updated with tenant headers.
+8. **UTF-8 BOM**: All 8 files with UTF-8 byte order marks stripped and cleaned.

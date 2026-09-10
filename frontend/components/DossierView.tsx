@@ -137,9 +137,14 @@ export interface ClaimVerificationResult {
 interface DossierViewProps {
   agentId?: string;
   initialDossier?: AgentDossierData | null;
+  tenantId?: string;
 }
 
-export default function DossierView({ agentId: initialAgentId, initialDossier }: DossierViewProps) {
+export default function DossierView({
+  agentId: initialAgentId,
+  initialDossier,
+  tenantId = 'tenant-demo'
+}: DossierViewProps) {
   const [selectedAgentId, setSelectedAgentId] = useState<string>(initialAgentId || '');
   const [dossier, setDossier] = useState<AgentDossierData | null>(initialDossier || null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -170,7 +175,7 @@ export default function DossierView({ agentId: initialAgentId, initialDossier }:
   const fetchAvailableAgents = async () => {
     try {
       const res = await fetch(`${API_BASE_URL}/api/blueprints`, {
-        headers: { 'X-Tenant-ID': 'tenant-default' },
+        headers: { 'X-Tenant-ID': tenantId },
       });
       if (res.ok) {
         const data = await res.json();
@@ -192,7 +197,7 @@ export default function DossierView({ agentId: initialAgentId, initialDossier }:
     setClaimResults({});
     try {
       const res = await fetch(`${API_BASE_URL}/api/dossier/${agentId}`, {
-        headers: { 'X-Tenant-ID': 'tenant-default' },
+        headers: { 'X-Tenant-ID': tenantId },
       });
       if (res.ok) {
         const data = await res.json();
@@ -201,7 +206,7 @@ export default function DossierView({ agentId: initialAgentId, initialDossier }:
         // Try assembling fresh
         const assembleRes = await fetch(`${API_BASE_URL}/api/dossier/${agentId}/assemble`, {
           method: 'POST',
-          headers: { 'X-Tenant-ID': 'tenant-default' },
+          headers: { 'X-Tenant-ID': tenantId },
         });
         if (assembleRes.ok) {
           const assembled = await assembleRes.json();
@@ -224,7 +229,7 @@ export default function DossierView({ agentId: initialAgentId, initialDossier }:
     setVerifyingClaimId(claimId);
     try {
       const res = await fetch(`${API_BASE_URL}/api/dossier/${dossier.agent_id}/claims/${claimId}/verify`, {
-        headers: { 'X-Tenant-ID': 'tenant-default' },
+        headers: { 'X-Tenant-ID': tenantId },
       });
       if (res.ok) {
         const result: ClaimVerificationResult = await res.json();

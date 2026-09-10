@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 from app.models.blueprint import AgentBlueprint, Guardrail, ToolSchema
 from app.models.harden import ProposedPatchesOutput
 from app.models.redteam import AttackVerdict

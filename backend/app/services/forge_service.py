@@ -374,6 +374,21 @@ class ForgeService:
             f"Assembled and persisted blueprint {blueprint.blueprint_id} "
             f"for spec {spec.spec_id} with hash {blueprint.blueprint_hash} and registry entry {provenance_entry.registry_id}"
         )
+
+        # 9. Stage 4: SHIELD (Policy Generation for runtime middleware gates B, D, E)
+        try:
+            await self.shield_service.generate_policy(spec=spec, blueprint=blueprint, persist=True)
+            logger.info(f"Generated and persisted SHIELD policy for spec {spec.spec_id}")
+        except Exception as e:
+            logger.warning(f"Could not generate SHIELD policy during blueprint assembly: {e}")
+
+        # 10. Record Forge complete milestone in cryptographic hash chain
+        try:
+            from .audit_service import AuditTrailService
+            await AuditTrailService(repo=self.repo).record_forge_complete(blueprint)
+        except Exception as e:
+            logger.warning(f"Could not record forge audit event for blueprint {blueprint.blueprint_id}: {e}")
+
         return blueprint
 
 

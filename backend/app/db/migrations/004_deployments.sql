@@ -1,4 +1,4 @@
-﻿-- Migration 004: Deployed Agent Packages
+-- Migration 004: Deployed Agent Packages
 CREATE TABLE IF NOT EXISTS deployments (
     deployment_id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
