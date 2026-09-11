@@ -16,6 +16,7 @@ import {
   Flame,
   Award
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 export interface ToolCallData {
   tool_name: string;
@@ -47,6 +48,7 @@ interface Props {
   onLaunchRedTeam?: () => void;
   onViewScorecard?: () => void;
   apiBaseUrl?: string;
+  tenantId?: string;
 }
 
 export default function AgentChatWindow({
@@ -54,7 +56,8 @@ export default function AgentChatWindow({
   onReset,
   onLaunchRedTeam,
   onViewScorecard,
-  apiBaseUrl = 'http://localhost:8000'
+  apiBaseUrl = 'http://localhost:8000',
+  tenantId = 'tenant-demo'
 }: Props) {
   const [messages, setMessages] = useState<MessageItem[]>([
     {
@@ -88,17 +91,16 @@ export default function AgentChatWindow({
         content: m.content
       }));
 
-      const res = await fetch(`${apiBaseUrl}/api/agents/${blueprint.blueprint_id}/chat`, {
+      const res = await apiFetch(`${apiBaseUrl}/api/agents/${blueprint.blueprint_id}/chat`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': 'tenant-demo'
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           message: text,
           history: history
         })
-      });
+      }, tenantId);
 
       if (!res.ok) {
         throw new Error(`Chat API error: HTTP ${res.status}`);

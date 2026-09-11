@@ -18,9 +18,11 @@ import {
 import { BlueprintInfo } from './AgentChatWindow';
 import { VerificationScorecardData } from './VerificationScorecardView';
 import { HardeningLogData } from './HardeningLogView';
+import { apiFetch } from '../lib/api';
 
 export interface AuditModeEntryProps {
   apiBaseUrl: string;
+  tenantId?: string;
   onAuditComplete: (result: {
     blueprint: BlueprintInfo;
     scorecard: VerificationScorecardData;
@@ -39,6 +41,7 @@ interface GoldQAPair {
 
 export default function AuditModeEntry({
   apiBaseUrl,
+  tenantId = 'tenant-demo',
   onAuditComplete,
   onError,
 }: AuditModeEntryProps) {
@@ -217,11 +220,10 @@ export default function AuditModeEntry({
 
       const activeGold = goldQA.filter((g) => g.question.trim() && g.answer.trim());
 
-      const res = await fetch(`${apiBaseUrl}/api/audit/pipeline/import-and-run`, {
+      const res = await apiFetch(`${apiBaseUrl}/api/audit/pipeline/import-and-run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Tenant-ID': 'tenant-demo',
         },
         body: JSON.stringify({
           format_type: format,
@@ -231,7 +233,7 @@ export default function AuditModeEntry({
           survival_threshold: 0.80,
           max_harden_passes: 1,
         }),
-      });
+      }, tenantId);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));

@@ -2,33 +2,40 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Dna, ShieldAlert, Sparkles } from 'lucide-react';
+import { ArrowLeft, Dna, Sparkles, Cpu } from 'lucide-react';
 import DeepForgeLineageViewer from '../../components/DeepForgeLineageViewer';
 
 export default function EvolvePage() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-6 md:p-10 font-sans selection:bg-purple-600 selection:text-white">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Navigation Bar */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-          <Link
-            href="/"
-            className="inline-flex items-center space-x-2 text-sm text-slate-400 hover:text-white transition group"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-            <span>Return to PromptForge Home</span>
-          </Link>
-          <div className="flex items-center space-x-3 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-950/60 border border-purple-800/40 text-purple-300">
-              <Dna className="w-3.5 h-3.5 text-purple-400" />
-              <span>Deep Forge Engine</span>
-            </span>
-            <span className="text-slate-600">•</span>
-            <span>Evolutionary Multi-Generation Mode</span>
+    <main className="min-h-screen bg-forge-dark text-slate-100 font-sans selection:bg-purple-600 selection:text-white">
+      {/* Shared-theme header — matches UnifiedNavigationShell style */}
+      <header className="w-full border-b border-forge-border bg-forge-dark/90 backdrop-blur-md sticky top-0 z-50 px-4 md:px-8 py-3 flex items-center gap-4">
+        <Link href="/" className="flex items-center gap-2 group shrink-0">
+          <div className="w-7 h-7 flex items-center justify-center rounded-lg bg-blue-600/15 text-blue-400 border border-blue-500/25 group-hover:border-blue-400/60 transition-colors">
+            <Cpu className="w-3.5 h-3.5" />
           </div>
+          <span className="text-sm font-bold tracking-tight text-white group-hover:text-blue-200 transition-colors">
+            PromptForge
+          </span>
+        </Link>
+        <span className="text-forge-border">/</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 border border-purple-500/25 text-purple-300 text-xs font-medium">
+          <Dna className="w-3.5 h-3.5 text-purple-400" />
+          EVOLVE Deep Forge
         </div>
+        <span className="hidden sm:inline text-xs text-slate-500">·</span>
+        <span className="hidden sm:inline text-xs text-slate-400">Evolutionary Multi-Generation Prompt Engine</span>
+        <div className="flex-1" />
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition group"
+        >
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Forge
+        </Link>
+      </header>
 
-        {/* Lineage Viewer */}
+      <div className="max-w-7xl mx-auto p-4 md:p-8">
         <DeepForgeLineageViewer />
       </div>
     </main>

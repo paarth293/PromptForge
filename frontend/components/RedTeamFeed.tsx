@@ -17,6 +17,7 @@ import {
   Zap,
   Terminal
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -157,14 +158,13 @@ export default function RedTeamFeed({
   const fetchFallbackReport = async () => {
     try {
       setStatusMessage('Querying latest Red Team report from repository...');
-      const res = await fetch(`${API_BASE_URL}/api/redteam/run/${blueprintId}`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/redteam/run/${blueprintId}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': tenantId
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ attacks_per_persona: 3, concurrency: 8 })
-      });
+      }, tenantId);
 
       if (res.ok) {
         const rep: RedTeamReportData = await res.json();

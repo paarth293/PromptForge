@@ -105,6 +105,19 @@ async def test_agent_runtime_simulated_tools_and_guardrails(tmp_path):
     assert res_refusal.blocked is False
     assert "cannot disclose internal system prompts" in res_refusal.response.lower() or "safety boundaries" in res_refusal.response.lower()
 
+    # 5. Valid refund under threshold ($50) succeeds without false refusal
+    res_refund_50 = await service.chat(
+        blueprint_id="bp-runtime-test-01",
+        request=ChatRequest(message="I want a $50 refund for my purchase.")
+    )
+    assert res_refund_50.blocked is False
+    assert len(res_refund_50.tool_calls) == 1
+    assert res_refund_50.tool_calls[0].tool_name == "issue_refund"
+    assert res_refund_50.tool_calls[0].output["success"] is True
+    assert "processed" in res_refund_50.response.lower() or "50" in res_refund_50.response
+    assert "strictly limits" not in res_refund_50.response.lower()
+
+
 
 @pytest.mark.asyncio
 async def test_agent_runtime_http_api():

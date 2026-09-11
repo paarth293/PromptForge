@@ -21,6 +21,7 @@ import {
   FileCheck,
   ArrowUpRight
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 export interface MonitorScheduleData {
   schedule_id: string;
@@ -107,9 +108,7 @@ export default function MonitorDashboardView({
     if (!agentId) return;
     try {
       setError(null);
-      const res = await fetch(`${apiBaseUrl}/api/monitor/history/${agentId}`, {
-        headers: { 'X-Tenant-ID': tenantId }
-      });
+      const res = await apiFetch(`${apiBaseUrl}/api/monitor/history/${agentId}`, {}, tenantId);
       if (!res.ok) {
         throw new Error(`Failed to load monitor history: HTTP ${res.status}`);
       }
@@ -132,18 +131,15 @@ export default function MonitorDashboardView({
     setRunningAdhoc(true);
     setError(null);
     try {
-      const res = await fetch(`${apiBaseUrl}/api/monitor/run/${agentId}`, {
+      const res = await apiFetch(`${apiBaseUrl}/api/monitor/run/${agentId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': tenantId
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           attacks_per_run: 5,
           drift_threshold: 0.10,
           check_goal_completion: true
         })
-      });
+      }, tenantId);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -165,18 +161,15 @@ export default function MonitorDashboardView({
 
     setSubmittingReview(true);
     try {
-      const res = await fetch(`${apiBaseUrl}/api/monitor/alerts/${reviewingAlert.alert_id}/review`, {
+      const res = await apiFetch(`${apiBaseUrl}/api/monitor/alerts/${reviewingAlert.alert_id}/review`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': tenantId
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: reviewStatus,
           reviewer_notes: reviewNotes,
           action_approved: reviewActionApproved
         })
-      });
+      }, tenantId);
 
       if (!res.ok) {
         throw new Error(`Failed to submit review: HTTP ${res.status}`);

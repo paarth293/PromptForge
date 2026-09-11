@@ -24,6 +24,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 
+import { apiFetch } from '../lib/api';
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export interface DossierCapabilityRecord {
@@ -174,9 +176,7 @@ export default function DossierView({
 
   const fetchAvailableAgents = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/blueprints/summary`, {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      const res = await apiFetch(`${API_BASE_URL}/api/blueprints/summary`, {}, tenantId);
       if (res.ok) {
         const data = await res.json();
         setAvailableAgents(data);
@@ -196,18 +196,15 @@ export default function DossierView({
     setError(null);
     setClaimResults({});
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dossier/${agentId}`, {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      const res = await apiFetch(`${API_BASE_URL}/api/dossier/${agentId}`, {}, tenantId);
       if (res.ok) {
         const data = await res.json();
         setDossier(data);
       } else {
         // Try assembling fresh
-        const assembleRes = await fetch(`${API_BASE_URL}/api/dossier/${agentId}/assemble`, {
+        const assembleRes = await apiFetch(`${API_BASE_URL}/api/dossier/${agentId}/assemble`, {
           method: 'POST',
-          headers: { 'X-Tenant-ID': tenantId },
-        });
+        }, tenantId);
         if (assembleRes.ok) {
           const assembled = await assembleRes.json();
           setDossier(assembled);
@@ -228,9 +225,7 @@ export default function DossierView({
     if (!dossier) return;
     setVerifyingClaimId(claimId);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/dossier/${dossier.agent_id}/claims/${claimId}/verify`, {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      const res = await apiFetch(`${API_BASE_URL}/api/dossier/${dossier.agent_id}/claims/${claimId}/verify`, {}, tenantId);
       if (res.ok) {
         const result: ClaimVerificationResult = await res.json();
         setClaimResults((prev) => ({ ...prev, [claimId]: result }));

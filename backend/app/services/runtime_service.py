@@ -566,9 +566,14 @@ class AgentRuntimeService:
             llm_resp = await self.llm.complete(prompt=messages, model="gpt-4o")
             asst_reply = llm_resp.content
 
-            # In demo mode, if mock fallback returned generic text, generate a clean persona-grounded response
+            # In demo mode, if mock fallback returned generic text or contradicted tool success, generate a clean persona-grounded response
             from ..config import settings
-            if settings.demo_mode and ("simulated response from" in asst_reply.lower() or "demoassistant" in asst_reply.lower()):
+            has_successful_tool = bool(tool_calls and tool_calls[0].output.get("success"))
+            if settings.demo_mode and (
+                "simulated response from" in asst_reply.lower()
+                or "demoassistant" in asst_reply.lower()
+                or (has_successful_tool and ("strictly limits" in asst_reply.lower() or "cannot fulfill" in asst_reply.lower()))
+            ):
                 if tool_calls:
                     tc = tool_calls[0]
                     if "order" in tc.tool_name.lower():

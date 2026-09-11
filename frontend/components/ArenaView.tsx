@@ -26,6 +26,7 @@ import {
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 export interface ArenaTurnData {
   turn_number: number;
@@ -101,6 +102,7 @@ export interface ArenaRunResultData {
 interface ArenaViewProps {
   blueprintId?: string;
   agentName?: string;
+  tenantId?: string;
   onBackToVerification?: () => void;
 }
 
@@ -109,6 +111,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_
 export default function ArenaView({
   blueprintId = 'demo-blueprint-1',
   agentName = 'Customer Support Assistant',
+  tenantId = 'tenant-demo',
   onBackToVerification,
 }: ArenaViewProps) {
   const [activeTab, setActiveTab] = useState<'ring' | 'seam' | 'playbook'>('ring');
@@ -348,7 +351,7 @@ export default function ArenaView({
 
   const fetchArenaHistory = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/arena/pairings/${blueprintId}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/arena/pairings/${blueprintId}`, {}, tenantId);
       if (res.ok) {
         const pairings: ArenaPairingData[] = await res.json();
         if (pairings && pairings.length > 0) {
@@ -386,7 +389,7 @@ export default function ArenaView({
 
   const fetchSeamLogs = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/arena/seam-logs?target_agent_id=${blueprintId}`);
+      const res = await apiFetch(`${API_BASE_URL}/api/arena/seam-logs?target_agent_id=${blueprintId}`, {}, tenantId);
       if (res.ok) {
         const logs: SeamAuditLogData[] = await res.json();
         if (logs && logs.length > 0) {
@@ -404,11 +407,10 @@ export default function ArenaView({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/arena/run`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/arena/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Tenant-ID': 'tenant-demo',
         },
         body: JSON.stringify({
           target_blueprint_id: blueprintId,
@@ -416,7 +418,7 @@ export default function ArenaView({
           max_turns_per_pairing: 3,
           include_seam_attacks: true,
         }),
-      });
+      }, tenantId);
 
       if (!res.ok) {
         throw new Error(`Arena battery failed with status ${res.status}`);
@@ -441,11 +443,10 @@ export default function ArenaView({
   const handleTestInteractiveSeam = async () => {
     setSeamTesting(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/arena/seam-test`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/arena/seam-test`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Tenant-ID': 'tenant-demo',
         },
         body: JSON.stringify({
           target_blueprint_id: blueprintId,
@@ -460,7 +461,7 @@ export default function ArenaView({
             [customCarrierField]: customSmuggledCmd,
           },
         }),
-      });
+      }, tenantId);
 
       if (res.ok) {
         const data = await res.json();

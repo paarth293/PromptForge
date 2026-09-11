@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import AgentChatWindow, { BlueprintInfo } from '../../../components/AgentChatWindow';
 import MonitorDashboardView from '../../../components/MonitorDashboardView';
 import { Shield, Award, CheckCircle2, AlertCircle, RefreshCw, Activity, MessageSquare } from 'lucide-react';
+import { apiFetch } from '../../../lib/api';
 
 interface DeploymentData {
   deployment_id: string;
@@ -61,7 +62,7 @@ export default function DeployedAgentPage() {
       setError(null);
       try {
         // 1. Fetch deployment package
-        const deployRes = await fetch(`${apiBaseUrl}/api/deploy/agents/${agentId}`);
+        const deployRes = await apiFetch(`${apiBaseUrl}/api/deploy/agents/${agentId}`, {}, 'tenant-demo');
         if (!deployRes.ok) {
           throw new Error(`Agent not found or deployment is unavailable (${deployRes.status})`);
         }
@@ -69,9 +70,7 @@ export default function DeployedAgentPage() {
         setDeployment(deployData);
 
         // 2. Fetch full blueprint for chat window
-        const bpRes = await fetch(`${apiBaseUrl}/api/blueprints/${deployData.blueprint_id}`, {
-          headers: { 'X-Tenant-ID': 'tenant-demo' }
-        });
+        const bpRes = await apiFetch(`${apiBaseUrl}/api/blueprints/${deployData.blueprint_id}`, {}, 'tenant-demo');
         if (bpRes.ok) {
           const bpData = await bpRes.json();
           setBlueprint({
@@ -107,7 +106,7 @@ export default function DeployedAgentPage() {
     if (!deployment?.certificate_id) return;
     setVerifying(true);
     try {
-      const res = await fetch(`${apiBaseUrl}/api/verify/certificate/${deployment.certificate_id}`);
+      const res = await apiFetch(`${apiBaseUrl}/api/verify/certificate/${deployment.certificate_id}`, {}, 'tenant-demo');
       if (res.ok) {
         const data: VerificationResult = await res.json();
         setVerificationResult(data);
@@ -121,7 +120,7 @@ export default function DeployedAgentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-forge-dark text-slate-100 flex items-center justify-center p-6">
         <div className="flex items-center space-x-3 text-slate-400">
           <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
           <span>Connecting to deployed agent runtime...</span>
@@ -132,7 +131,7 @@ export default function DeployedAgentPage() {
 
   if (error || !deployment || !blueprint) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-6">
+      <div className="min-h-screen bg-forge-dark text-slate-100 flex items-center justify-center p-6">
         <div className="max-w-md w-full bg-slate-900 border border-slate-800 rounded-xl p-6 text-center">
           <AlertCircle className="w-12 h-12 text-rose-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-white mb-2">Agent Not Found</h2>
@@ -151,7 +150,7 @@ export default function DeployedAgentPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-forge-dark text-slate-100 flex flex-col">
       {/* Header bar with metadata & Birth Certificate info */}
       <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur px-6 py-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3">

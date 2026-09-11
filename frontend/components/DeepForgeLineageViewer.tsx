@@ -21,6 +21,7 @@ import {
   Check,
   Zap,
 } from 'lucide-react';
+import { apiFetch } from '../lib/api';
 
 export interface EvolveCandidateData {
   candidate_id: string;
@@ -317,9 +318,7 @@ export default function DeepForgeLineageViewer({
   // Load from API if specId provided
   const fetchLineage = async (targetSpecId: string) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/evolve/lineage/${targetSpecId}`, {
-        headers: { 'X-Tenant-ID': tenantId },
-      });
+      const res = await apiFetch(`${API_BASE_URL}/api/evolve/lineage/${targetSpecId}`, {}, tenantId);
       if (res.ok) {
         const data = await res.json();
         setLog(data);
@@ -336,11 +335,10 @@ export default function DeepForgeLineageViewer({
     setIsRunningJob(true);
     setRunMessage('Queuing Deep Forge offline background run...');
     try {
-      const res = await fetch(`${API_BASE_URL}/api/evolve/run`, {
+      const res = await apiFetch(`${API_BASE_URL}/api/evolve/run`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Tenant-ID': tenantId,
         },
         body: JSON.stringify({
           spec_id: specId || log.spec_id,
@@ -350,7 +348,7 @@ export default function DeepForgeLineageViewer({
           is_background: true,
           cached_demo_preferred: false,
         }),
-      });
+      }, tenantId);
       if (res.ok) {
         const data = await res.json();
         setRunMessage(`Deep Forge job queued in background (task: ${data.spec_id}). Live UI remains responsive.`);

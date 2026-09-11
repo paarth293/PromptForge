@@ -39,9 +39,11 @@ const DeepForgeLineageViewer = dynamic(() => import('../components/DeepForgeLine
 const ArenaView = dynamic(() => import('../components/ArenaView'), { ssr: false });
 const DossierView = dynamic(() => import('../components/DossierView'), { ssr: false });
 const MonitorDashboardView = dynamic(() => import('../components/MonitorDashboardView'), { ssr: false });
+const AuditModeEntry = dynamic(() => import('../components/AuditModeEntry'), { ssr: false });
 import UnifiedNavigationShell, { ForgeStage, SurfaceMode } from '../components/UnifiedNavigationShell';
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import type { HardeningLogData } from '../components/HardeningLogView';
+import type { VerificationScorecardData } from '../components/VerificationScorecardView';
+import { API_BASE_URL, apiFetch } from '../lib/api';
 
 // Fallback demo fixtures for immediate single-click inspection of downstream stages
 const DEMO_SPEC: AgentSpecData = {
@@ -216,14 +218,11 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/forge/decompose`, {
+      const res = await apiFetch('/api/forge/decompose', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': activeTenant
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: text })
-      });
+      }, activeTenant);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
@@ -247,14 +246,11 @@ export default function HomePage() {
 
     try {
       // Step A: Save spec corrections
-      const confirmRes = await fetch(`${API_BASE_URL}/api/forge/confirm`, {
+      const confirmRes = await apiFetch('/api/forge/confirm', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': activeTenant
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedSpec)
-      });
+      }, activeTenant);
 
       if (!confirmRes.ok) {
         throw new Error(`Failed to confirm spec (status ${confirmRes.status})`);
@@ -297,13 +293,10 @@ export default function HomePage() {
     setTimeout(() => updateStep(5, 'done'), 2000);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/forge/assemble/${specId}`, {
+      const res = await apiFetch(`/api/forge/assemble/${specId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': activeTenant
-        }
-      });
+        headers: { 'Content-Type': 'application/json' }
+      }, activeTenant);
 
       if (!res.ok) {
         throw new Error(`Assembly failed with HTTP ${res.status}`);
@@ -335,13 +328,10 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/verify/run/${blueprint.blueprint_id}`, {
+      const res = await apiFetch(`/api/verify/run/${blueprint.blueprint_id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': activeTenant
-        }
-      });
+        headers: { 'Content-Type': 'application/json' }
+      }, activeTenant);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail || 'Verification failed');
@@ -468,13 +458,10 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/harden/run/${blueprint.blueprint_id}`, {
+      const res = await apiFetch(`/api/harden/run/${blueprint.blueprint_id}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': activeTenant
-        }
-      });
+        headers: { 'Content-Type': 'application/json' }
+      }, activeTenant);
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.detail || 'Hardening loop failed');
@@ -558,13 +545,10 @@ export default function HomePage() {
     setDeploying(true);
     setDeploymentResult(null);
     try {
-      const deployRes = await fetch(`${API_BASE_URL}/api/deploy/agents/${bpId}`, {
+      const deployRes = await apiFetch(`/api/deploy/agents/${bpId}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Tenant-ID': activeTenant
-        }
-      });
+        headers: { 'Content-Type': 'application/json' }
+      }, activeTenant);
       if (!deployRes.ok) {
         const errData = await deployRes.json().catch(() => ({}));
         throw new Error(errData.detail || `Deploy failed with status ${deployRes.status}`);
@@ -573,13 +557,10 @@ export default function HomePage() {
 
       let cert = null;
       try {
-        const certRes = await fetch(`${API_BASE_URL}/api/deploy/certificate/generate/${bpId}`, {
+        const certRes = await apiFetch(`/api/deploy/certificate/generate/${bpId}`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Tenant-ID': activeTenant
-          }
-        });
+          headers: { 'Content-Type': 'application/json' }
+        }, activeTenant);
         if (certRes.ok) {
           cert = await certRes.json();
         }
@@ -598,9 +579,7 @@ export default function HomePage() {
   const fetchCostReport = async () => {
     setCostLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/metrics/cost`, {
-        headers: { 'X-Tenant-ID': activeTenant }
-      });
+      const res = await apiFetch('/api/metrics/cost', {}, activeTenant);
       if (res.ok) {
         const data = await res.json();
         setCostReport(data);
@@ -642,7 +621,7 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0B0F17] text-slate-100 flex flex-col items-center justify-start pb-12">
+    <main className="min-h-screen bg-forge-dark bg-grid-fade bg-no-repeat text-slate-100 flex flex-col items-center justify-start pb-12">
       {/* Unified Navigation Shell across all 11 product views */}
       <UnifiedNavigationShell
         activeStage={stage === 'input' && pipelineMode === 'audit' ? 'audit' : stage}
@@ -790,23 +769,23 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* First-Class Mode Switcher (FORGE vs AUDIT) */}
+        {/* Mode Switcher (FORGE vs AUDIT) — compact segmented control, no longer competing for attention with a full banner */}
         {stage === 'input' && (
-          <div className="flex items-center justify-center gap-3 mb-6 p-1.5 rounded-2xl bg-[#121826] border border-[#232D42] shadow-xl">
+          <div className="flex items-center justify-center gap-1.5 mb-6 p-1 rounded-xl bg-forge-surface border border-forge-border">
             <button
               type="button"
               onClick={() => {
                 setPipelineMode('forge');
                 setError(null);
               }}
-              className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              className={`px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2 transition-colors ${
                 pipelineMode === 'forge'
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20 border border-blue-500'
+                  ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Cpu className="w-4 h-4" />
-              Mode 1: FORGE (Build New Agent)
+              <Cpu className="w-3.5 h-3.5" />
+              FORGE — Build New Agent
             </button>
             <button
               type="button"
@@ -814,101 +793,68 @@ export default function HomePage() {
                 setPipelineMode('audit');
                 setError(null);
               }}
-              className={`px-5 py-2.5 rounded-xl font-bold text-xs flex items-center gap-2 transition-all ${
+              className={`px-4 py-2 rounded-lg font-semibold text-xs flex items-center gap-2 transition-colors ${
                 pipelineMode === 'audit'
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 border border-emerald-500'
+                  ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              <Shield className="w-4 h-4" />
-              Mode 2: AUDIT (Bring Your Own Agent)
+              <Shield className="w-3.5 h-3.5" />
+              AUDIT — Bring Your Own Agent
             </button>
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* TWO-SURFACE AUDIENCE DISTINCTION DECKS (Ask vs Deploy)                     */}
-        {/* ========================================================================= */}
-
-        {/* ASK SURFACE: Creator Studio (for Product Managers & Business Users) */}
+        {/* Surface toolbar: one slim row of quick actions per audience, instead of a large descriptive banner
+            (the audience name & description already live in the navigation shell's progress row above). */}
         {surface === 'ask' && (
-          <div className="w-full mb-6 p-4 rounded-2xl bg-[#14120E] border border-amber-500/30 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in duration-200">
-            <div className="flex items-start gap-3">
-              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/40 shrink-0 mt-0.5">
-                <Compass className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    Ask Surface: Creator Studio
-                  </h3>
-                  <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                    Audience: Product Managers & Domain Creators
-                  </span>
-                </div>
-                <p className="text-xs text-amber-200/70 mt-1 max-w-2xl">
-                  Serving the person who described the agent. Focus on plain-English behavior, outcome validation, and certified executive safety without technical schema or cryptographic clutter.
-                </p>
-              </div>
+          <div className="w-full mb-6 py-2.5 px-3.5 rounded-xl bg-forge-surface/60 border border-amber-500/20 flex items-center justify-between gap-3 flex-wrap animate-in fade-in duration-200">
+            <div className="flex items-center gap-2 text-xs text-amber-200/80">
+              <Compass className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>Quick jump — plain-English review, testing, and the safety scorecard:</span>
             </div>
-
-            <div className="flex items-center gap-2 self-stretch md:self-auto justify-end shrink-0 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => handleNavigateStage('confirm_spec')}
-                className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" />
-                1. Spec
+                Spec
               </button>
               <button
                 type="button"
                 onClick={() => handleNavigateStage('chat')}
-                className="px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
               >
                 <Send className="w-3.5 h-3.5" />
-                2. Test Chat
+                Test Chat
               </button>
               <button
                 type="button"
                 onClick={() => handleNavigateStage('verify')}
-                className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                className="px-2.5 py-1 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
               >
                 <Award className="w-3.5 h-3.5" />
-                3. Scorecard
+                Scorecard
               </button>
             </div>
           </div>
         )}
 
-        {/* DEPLOY SURFACE: Engineering Console (for Platform & DevSecOps Engineers) */}
         {surface === 'deploy' && (
-          <div className="w-full mb-6 p-4 rounded-2xl bg-[#0B1320] border border-cyan-500/30 shadow-xl flex flex-col gap-4 animate-in fade-in duration-200">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/40 shrink-0 mt-0.5">
-                  <Terminal className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                      Deploy Surface: Engineering & DevSecOps Console
-                    </h3>
-                    <span className="text-[10px] uppercase font-mono font-bold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                      Audience: Platform Engineers & Security Architects
-                    </span>
-                  </div>
-                  <p className="text-xs text-cyan-200/70 mt-1 max-w-2xl">
-                    Serving the engineer who certifies, deploys, and trusts the agent. Direct access to raw CRISPE architecture, OpenAI tool schemas, surgical hardening diffs, HTTP API curl snippets, and tamper-evident cryptographic hash chains.
-                  </p>
-                </div>
+          <div className="w-full mb-6 rounded-xl bg-forge-surface/60 border border-cyan-500/20 flex flex-col gap-3 animate-in fade-in duration-200">
+            <div className="py-2.5 px-3.5 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-cyan-200/80">
+                <Terminal className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                <span className="hidden sm:inline">Engineering console — red team, hardening diffs, cost, and deploy:</span>
               </div>
 
-              <div className="flex items-center gap-2 self-stretch md:self-auto justify-end shrink-0 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   onClick={() => handleNavigateStage('redteam')}
-                  className="px-3 py-1.5 rounded-xl bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  className="px-2.5 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <Flame className="w-3.5 h-3.5" />
                   Red Team
@@ -916,7 +862,7 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => handleNavigateStage('harden')}
-                  className="px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Diffs & Patches
@@ -928,10 +874,10 @@ export default function HomePage() {
                     setShowCostLedger(next);
                     if (next) fetchCostReport();
                   }}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  className={`px-2.5 py-1 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-colors ${
                     showCostLedger
                       ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
-                      : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+                      : 'bg-slate-800/60 hover:bg-slate-700 border-slate-700 text-slate-300'
                   }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
@@ -941,7 +887,7 @@ export default function HomePage() {
                   type="button"
                   onClick={handleDeployAgent}
                   disabled={deploying}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 transition-all"
+                  className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors"
                 >
                   {deploying ? (
                     <>
@@ -959,7 +905,7 @@ export default function HomePage() {
             </div>
 
             {/* Quick Engineering Integration Drawer (API Curl & Cryptographic Fingerprint) */}
-            <div className="p-3 bg-[#060A10] border border-[#1E293B] rounded-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+            <div className="mx-3.5 mb-3.5 p-3 bg-[#060A10] border border-[#1E293B] rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
               <div className="flex items-center gap-2 flex-wrap font-mono">
                 <span className="text-[10px] uppercase font-bold text-slate-400">API Endpoint:</span>
                 <code className="text-cyan-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/50 text-[11px]">
@@ -1000,7 +946,7 @@ export default function HomePage() {
 
             {/* Deployment Result & Birth Certificate Card */}
             {deploymentResult && (
-              <div className="p-4 bg-[#0A111E] border border-emerald-500/30 rounded-xl space-y-3 text-xs animate-in fade-in duration-200">
+              <div className="mx-3.5 mb-3.5 p-4 bg-[#0A111E] border border-emerald-500/30 rounded-lg space-y-3 text-xs animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
@@ -1062,7 +1008,7 @@ export default function HomePage() {
 
             {/* Cost Ledger Drawer */}
             {showCostLedger && (
-              <div className="p-4 bg-[#0A101D] border border-amber-500/30 rounded-xl space-y-3 text-xs animate-in fade-in duration-200">
+              <div className="mx-3.5 mb-3.5 p-4 bg-[#0A101D] border border-amber-500/30 rounded-lg space-y-3 text-xs animate-in fade-in duration-200">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Activity className="w-4 h-4 text-amber-400" />
@@ -1126,10 +1072,14 @@ export default function HomePage() {
         {stage === 'input' && pipelineMode === 'forge' && (
           <div className="w-full space-y-8 animate-in fade-in duration-300">
             <div className="text-center space-y-3 max-w-2xl mx-auto pt-6">
-              <h2 className="text-3xl font-extrabold text-white tracking-tight">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/25 text-blue-300 text-[11px] font-semibold uppercase tracking-wider">
+                <Cpu className="w-3 h-3" />
+                Forge Mode
+              </div>
+              <h2 className="text-3xl md:text-4xl font-extrabold text-white tracking-tight text-balance">
                 One sentence in, an attack-hardened agent out.
               </h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-400 max-w-xl mx-auto">
                 Type what your agent should do. PromptForge will infer unstated security policies,
                 synthesize CRISPE system prompts, build function tools, and attach verified guardrails.
               </p>
@@ -1141,7 +1091,7 @@ export default function HomePage() {
                 e.preventDefault();
                 handleDecompose();
               }}
-              className="bg-[#121826] border border-[#232D42] rounded-2xl p-6 shadow-2xl space-y-4"
+              className="bg-forge-surface border border-forge-border rounded-2xl p-6 shadow-panel space-y-4"
             >
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
                 Agent Intent Description
@@ -1152,7 +1102,7 @@ export default function HomePage() {
                   value={promptInput}
                   onChange={(e) => setPromptInput(e.target.value)}
                   placeholder="e.g. Build me a customer support agent that checks order status and issues refunds under $500."
-                  className="w-full p-4 bg-[#0B0F17] border border-[#232D42] rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full p-4 bg-forge-dark border border-forge-border rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
 
@@ -1163,7 +1113,7 @@ export default function HomePage() {
                 <button
                   type="submit"
                   disabled={loading || !promptInput.trim()}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all"
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-glow disabled:opacity-50 disabled:shadow-none transition-all"
                 >
                   {loading ? (
                     <>
@@ -1214,6 +1164,7 @@ export default function HomePage() {
         {stage === 'input' && pipelineMode === 'audit' && (
           <AuditModeEntry
             apiBaseUrl={API_BASE_URL}
+            tenantId={activeTenant}
             onAuditComplete={handleAuditComplete}
             onError={setError}
           />
@@ -1279,6 +1230,7 @@ export default function HomePage() {
               onLaunchRedTeam={() => setStage('redteam')}
               onViewScorecard={handleRunVerification}
               apiBaseUrl={API_BASE_URL}
+              tenantId={activeTenant}
             />
           </div>
         )}
@@ -1351,6 +1303,7 @@ export default function HomePage() {
             <ArenaView
               blueprintId={blueprint?.blueprint_id || 'demo-blueprint-1'}
               agentName={blueprint?.agent_name || spec?.agent_name || 'Customer Support Assistant'}
+              tenantId={activeTenant}
               onBackToVerification={() => setStage('verify')}
             />
           </div>
