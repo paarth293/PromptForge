@@ -140,32 +140,32 @@ export default function AgentChatWindow({
   ];
 
   return (
-    <div className="w-full bg-[#121826] border border-[#232D42] rounded-2xl shadow-2xl flex flex-col h-[750px] overflow-hidden">
+    <div className="w-full bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl shadow-card flex flex-col h-[750px] overflow-hidden">
       {/* Header */}
-      <div className="p-4 border-b border-[#232D42] bg-[#0F1420] flex items-center justify-between">
+      <div className="p-4 border-b border-[#E8DDD2] bg-[#F0E6DC] flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+          <div className="w-10 h-10 rounded-xl bg-[#C75A3B] text-white flex items-center justify-center shadow-sm">
             <Bot className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-base font-bold text-white">{blueprint.agent_name}</h2>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
+              <h2 className="text-base font-bold text-[#3D3229]">{blueprint.agent_name}</h2>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#2ECC71]/15 text-[#2ECC71] border border-[#2ECC71]/30 font-semibold">
                 LIVE RUNTIME
               </span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+            <div className="flex items-center gap-3 text-xs text-[#666555] mt-0.5">
               <span className="flex items-center gap-1">
-                <Wrench className="w-3 h-3 text-blue-400" />
+                <Wrench className="w-3 h-3 text-[#C75A3B]" />
                 {blueprint.tools.length} Tools
               </span>
               <span className="flex items-center gap-1">
-                <Shield className="w-3 h-3 text-amber-400" />
+                <Shield className="w-3 h-3 text-[#F39C12]" />
                 {blueprint.guardrails.length} Guardrails
               </span>
               {blueprint.blueprint_hash && (
-                <span className="flex items-center gap-1 font-mono text-[11px] text-slate-500" title={blueprint.blueprint_hash}>
-                  <Fingerprint className="w-3 h-3 text-slate-400" />
+                <span className="flex items-center gap-1 font-mono text-[11px] text-[#9B8B7E]" title={blueprint.blueprint_hash}>
+                  <Fingerprint className="w-3 h-3 text-[#9B8B7E]" />
                   {blueprint.blueprint_hash.substring(0, 10)}...
                 </span>
               )}
@@ -173,29 +173,29 @@ export default function AgentChatWindow({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {onLaunchRedTeam && (
             <button
               type="button"
               onClick={onLaunchRedTeam}
-              className="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs font-semibold text-white flex items-center gap-1.5 shadow-md shadow-red-600/20 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-[#E74C3C] hover:bg-[#C0392B] text-xs font-semibold text-white flex items-center gap-1.5 shadow-sm transition-colors"
             >
-              <Flame className="w-3.5 h-3.5" /> Stage 2: Red Team
+              <Flame className="w-3.5 h-3.5" /> Stage 4: Red Team
             </button>
           )}
           {onViewScorecard && (
             <button
               type="button"
               onClick={onViewScorecard}
-              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white flex items-center gap-1.5 shadow-md shadow-emerald-600/20 transition-colors"
+              className="px-3 py-1.5 rounded-lg bg-[#2ECC71] hover:bg-[#27AE60] text-xs font-semibold text-white flex items-center gap-1.5 shadow-sm transition-colors"
             >
-              <Award className="w-3.5 h-3.5" /> Stage 3: Verify
+              <Award className="w-3.5 h-3.5" /> Stage 6: Verify
             </button>
           )}
           <button
             type="button"
             onClick={onReset}
-            className="px-3 py-1.5 rounded-lg border border-[#232D42] bg-[#1B2333] hover:bg-[#232D42] text-xs text-slate-300 flex items-center gap-1.5 transition-colors"
+            className="btn-secondary text-xs py-1.5 px-3"
           >
             <RotateCcw className="w-3.5 h-3.5" /> Forge Another
           </button>
@@ -203,14 +203,14 @@ export default function AgentChatWindow({
       </div>
 
       {/* Messages Thread */}
-      <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#0B0F17]/70">
+      <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-[#F9F5F0]">
         {messages.map((m) => (
           <div
             key={m.id}
             className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {m.role === 'assistant' && (
-              <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#F0E6DC] border border-[#E8DDD2] flex items-center justify-center text-[#C75A3B] flex-shrink-0">
                 <Bot className="w-4 h-4" />
               </div>
             )}
@@ -219,14 +219,14 @@ export default function AgentChatWindow({
               <div
                 className={`p-4 rounded-2xl text-sm leading-relaxed ${
                   m.role === 'user'
-                    ? 'bg-blue-600 text-white rounded-br-none'
+                    ? 'bg-[#C75A3B] text-white rounded-br-none shadow-sm'
                     : m.blocked
-                    ? 'bg-rose-950/40 border border-rose-500/30 text-rose-200 rounded-bl-none'
-                    : 'bg-[#151C2C] border border-[#232D42] text-slate-100 rounded-bl-none shadow-md'
+                    ? 'bg-[#E74C3C]/10 border border-[#E74C3C]/30 text-[#E74C3C] rounded-bl-none'
+                    : 'bg-white border border-[#E8DDD2] text-[#3D3229] rounded-bl-none shadow-xs'
                 }`}
               >
                 {m.guardrail_triggered && (
-                  <div className="flex items-center gap-1.5 text-xs text-rose-400 font-semibold mb-2 pb-2 border-b border-rose-500/20">
+                  <div className="flex items-center gap-1.5 text-xs text-[#E74C3C] font-semibold mb-2 pb-2 border-b border-[#E74C3C]/20">
                     <AlertTriangle className="w-4 h-4" />
                     Safety Policy Enforced: {m.guardrail_triggered}
                   </div>
@@ -244,36 +244,36 @@ export default function AgentChatWindow({
                     return (
                       <div
                         key={idx}
-                        className="bg-[#0F1420] border border-blue-500/30 rounded-xl p-2.5 text-xs text-slate-300"
+                        className="bg-white border border-[#E8DDD2] rounded-xl p-2.5 text-xs text-[#3D3229] shadow-xs"
                       >
                         <div
                           className="flex items-center justify-between cursor-pointer"
                           onClick={() => setExpandedToolIndex(isExpanded ? null : toolKey)}
                         >
                           <div className="flex items-center gap-2">
-                            <span className="p-1 rounded bg-blue-500/20 text-blue-400">
+                            <span className="p-1 rounded bg-[#F0E6DC] text-[#C75A3B]">
                               <Wrench className="w-3.5 h-3.5" />
                             </span>
-                            <span className="font-semibold text-white">
-                              Simulated Tool Invocation: <code className="text-blue-300">{tc.tool_name}()</code>
+                            <span className="font-semibold text-[#3D3229]">
+                              Simulated Tool Invocation: <code className="text-[#C75A3B]">{tc.tool_name}()</code>
                             </span>
                           </div>
-                          <button className="text-slate-400 hover:text-white">
+                          <button className="text-[#666555] hover:text-[#3D3229]">
                             {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                           </button>
                         </div>
 
                         {isExpanded && (
-                          <div className="mt-2.5 pt-2 border-t border-[#232D42] space-y-2 font-mono text-[11px]">
+                          <div className="mt-2.5 pt-2 border-t border-[#E8DDD2] space-y-2 font-mono text-[11px]">
                             <div>
-                              <div className="text-slate-500 font-sans">Parameters:</div>
-                              <pre className="p-2 bg-black/40 rounded border border-slate-800 text-amber-300 overflow-x-auto">
+                              <div className="text-[#666555] font-sans">Parameters:</div>
+                              <pre className="p-2 bg-[#F9F5F0] rounded border border-[#E8DDD2] text-[#C75A3B] overflow-x-auto">
                                 {JSON.stringify(tc.parameters, null, 2)}
                               </pre>
                             </div>
                             <div>
-                              <div className="text-slate-500 font-sans">Simulated Tool Output:</div>
-                              <pre className="p-2 bg-black/40 rounded border border-slate-800 text-emerald-300 overflow-x-auto">
+                              <div className="text-[#666555] font-sans">Simulated Tool Output:</div>
+                              <pre className="p-2 bg-[#F9F5F0] rounded border border-[#E8DDD2] text-[#2ECC71] overflow-x-auto">
                                 {JSON.stringify(tc.output, null, 2)}
                               </pre>
                             </div>
@@ -287,7 +287,7 @@ export default function AgentChatWindow({
             </div>
 
             {m.role === 'user' && (
-              <div className="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-[#F0E6DC] border border-[#E8DDD2] flex items-center justify-center text-[#3D3229] flex-shrink-0">
                 <User className="w-4 h-4" />
               </div>
             )}
@@ -295,11 +295,11 @@ export default function AgentChatWindow({
         ))}
 
         {loading && (
-          <div className="flex gap-3 items-center text-xs text-slate-400">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+          <div className="flex gap-3 items-center text-xs text-[#666555]">
+            <div className="w-8 h-8 rounded-lg bg-[#F0E6DC] border border-[#E8DDD2] flex items-center justify-center text-[#C75A3B]">
               <Bot className="w-4 h-4 animate-spin" />
             </div>
-            <div className="p-3 rounded-2xl bg-[#151C2C] border border-[#232D42] text-slate-400">
+            <div className="p-3 rounded-2xl bg-white border border-[#E8DDD2] text-[#666555] shadow-xs">
               Agent is reasoning and executing guardrail verification...
             </div>
           </div>
@@ -307,9 +307,9 @@ export default function AgentChatWindow({
       </div>
 
       {/* Preset Test Triggers */}
-      <div className="p-3 border-t border-[#232D42] bg-[#0F1420]/80 flex flex-wrap gap-2 items-center">
-        <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 uppercase tracking-wider">
-          <Sparkles className="w-3 h-3 text-blue-400" /> Test Probes:
+      <div className="p-3 border-t border-[#E8DDD2] bg-[#F0E6DC] flex flex-wrap gap-2 items-center">
+        <span className="text-[11px] font-semibold text-[#666555] flex items-center gap-1 uppercase tracking-wider">
+          <Sparkles className="w-3 h-3 text-[#C75A3B]" /> Test Probes:
         </span>
         {presetTests.map((pt, i) => (
           <button
@@ -317,7 +317,7 @@ export default function AgentChatWindow({
             type="button"
             onClick={() => sendMessage(pt.prompt)}
             disabled={loading}
-            className="px-2.5 py-1 text-[11px] rounded-lg bg-[#1B2333] hover:bg-blue-600/20 border border-[#232D42] hover:border-blue-500/40 text-slate-300 hover:text-blue-300 transition-all disabled:opacity-50"
+            className="px-2.5 py-1 text-[11px] rounded-lg bg-white hover:bg-[#F9F5F0] border border-[#E8DDD2] text-[#3D3229] hover:text-[#C75A3B] transition-all disabled:opacity-50 font-medium shadow-xs"
           >
             {pt.label}
           </button>
@@ -330,20 +330,20 @@ export default function AgentChatWindow({
           e.preventDefault();
           sendMessage();
         }}
-        className="p-4 border-t border-[#232D42] bg-[#121826] flex gap-3"
+        className="p-4 border-t border-[#E8DDD2] bg-[#FBF8F4] flex gap-3"
       >
         <input
           type="text"
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
-          placeholder={`Message ${blueprint.agent_name}... (try asking for refund or order status)`}
+          placeholder={`Message ${blueprint.agent_name}... (e.g. check order status, request refund)`}
           disabled={loading}
-          className="flex-1 px-4 py-3 bg-[#0B0F17] border border-[#232D42] rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+          className="flex-1 px-4 py-3 bg-white border border-[#E8DDD2] rounded-xl text-sm text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B] transition-colors"
         />
         <button
           type="submit"
           disabled={loading || !inputValue.trim()}
-          className="px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 transition-all"
+          className="btn-primary text-sm px-5 py-3"
         >
           <Send className="w-4 h-4" />
           <span>Send</span>

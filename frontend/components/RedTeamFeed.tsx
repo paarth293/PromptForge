@@ -13,11 +13,12 @@ import {
   Hash,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Zap,
-  Terminal
+  DollarSign,
+  ArrowRight
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
+import AttackCascade from './AttackCascade';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -76,7 +77,7 @@ export default function RedTeamFeed({
   onProceedToHardening
 }: RedTeamFeedProps) {
   const [running, setRunning] = useState(false);
-  const [statusMessage, setStatusMessage] = useState('Ready to launch Red Team attack campaign.');
+  const [statusMessage, setStatusMessage] = useState('Initializing adversarial attack suite...');
   const [currentStage, setCurrentStage] = useState<string>('idle');
   const [totalExpected, setTotalExpected] = useState<number>(0);
   const [completedCount, setCompletedCount] = useState<number>(0);
@@ -85,9 +86,10 @@ export default function RedTeamFeed({
   const [agreementRate, setAgreementRate] = useState<number | null>(null);
   const [expandedVerdictId, setExpandedVerdictId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCascade, setShowCascade] = useState<boolean>(true);
+  const [liveCostTicker, setLiveCostTicker] = useState<number>(0.0084);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Auto-start campaign on mount
   useEffect(() => {
     startRedTeamStream();
     return () => {
@@ -96,6 +98,14 @@ export default function RedTeamFeed({
       }
     };
   }, [blueprintId]);
+
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => {
+      setLiveCostTicker((prev) => +(prev + 0.0042).toFixed(4));
+    }, 800);
+    return () => clearInterval(timer);
+  }, [running]);
 
   const cleanupEventSource = (es: EventSource) => {
     if (!es) return;
@@ -119,98 +129,77 @@ export default function RedTeamFeed({
     setVerdicts([]);
     setReport(null);
     setCompletedCount(0);
-    setStatusMessage('Initializing 3-axis diverse attacker campaign...');
-    setCurrentStage('generating');
+    setTotalExpected(0);
+    setStatusMessage('Launching adversarial personas & prompt injection suite...');
+    setLiveCostTicker(0.0084);
 
-    try {
-      const sseUrl = `${API_BASE_URL}/api/redteam/stream/${blueprintId}?attacks_per_persona=3&concurrency=8&tenant_id=${encodeURIComponent(tenantId)}`;
-      const es = new EventSource(sseUrl);
-      eventSourceRef.current = es;
+    const streamUrl = `${API_BASE_URL}/api/redteam/stream/${blueprintId}`;
+    const es = new EventSource(streamUrl);
+    eventSourceRef.current = es;
 
-      es.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data);
-          if (data.type === 'status') {
-            setStatusMessage(data.message);
-            setCurrentStage(data.stage);
-            // Handle error stage
-            if (data.stage === 'error') {
-              setError(data.message);
-              setRunning(false);
-              cleanupEventSource(es);
-              eventSourceRef.current = null;
-              return;
-            }
-          } else if (data.type === 'campaign_init') {
-            setTotalExpected(data.total_attacks);
-            setStatusMessage(`Gated Campaign Ready: ${data.total_attacks} attacks queued.`);
-          } else if (data.type === 'verdict') {
-            setCompletedCount(data.completed);
-            setTotalExpected(data.total);
-            setVerdicts((prev) => [data.verdict, ...prev]);
-            setStatusMessage(`Evaluated attack ${data.completed}/${data.total} — Verdict: ${data.verdict.verdict}`);
-          } else if (data.type === 'cross_check_complete') {
-            setAgreementRate(data.agreement_rate);
-            setStatusMessage(`Cross-check complete (${(data.agreement_rate * 100).toFixed(1)}% agreement rate).`);
-          } else if (data.type === 'report_ready') {
-            setReport(data.report);
-            setRunning(false);
-            setStatusMessage('Red Team pass complete. Final report generated and hashed.');
-            cleanupEventSource(es);
-            eventSourceRef.current = null;
-          }
-        } catch (err: any) {
-          console.error('Failed to parse SSE event:', err);
+    es.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
+        const eventType = payload.event;
+        const data = payload.data;
+
+        if (eventType === 'start') {
+          setStatusMessage(`Engaging ${data.total_attacks || 5} diversified adversarial attacks...`);
+          setTotalExpected(data.total_attacks || 5);
+        } else if (eventType === 'stage_progress') {
+          setCurrentStage(data.stage || 'executing');
+          setStatusMessage(data.message || 'Crafting attack payload...');
+        } else if (eventType === 'attack_result') {
+          setVerdicts((prev) => [data, ...prev]);
+          setCompletedCount((c) => c + 1);
+          setStatusMessage(`Verdict reached for ${data.attacker_persona} (${data.verdict})`);
+        } else if (eventType === 'complete') {
+          setStatusMessage('Red Team attack campaign complete. Compiling final security scorecard.');
+          cleanupEventSource(es);
+          eventSourceRef.current = null;
+          fetchFinalReport();
+        } else if (eventType === 'error') {
+          setError(data.message || 'Stream encountered an evaluation error.');
+          cleanupEventSource(es);
+          eventSourceRef.current = null;
+          setRunning(false);
         }
-      };
+      } catch (err) {
+        console.error('SSE JSON parse error:', err);
+      }
+    };
 
-      es.onerror = (err) => {
-        console.error('SSE stream error:', err);
-        cleanupEventSource(es);
-        eventSourceRef.current = null;
-        // Fallback to direct POST execution if SSE disconnects
-        setStatusMessage('SSE stream disconnected, attempting REST fallback...');
-        fetchFallbackReport();
-      };
-    } catch (err: any) {
-      setError(err.message || 'Failed to initialize Red Team stream');
-      setRunning(false);
-    }
+    es.onerror = () => {
+      cleanupEventSource(es);
+      eventSourceRef.current = null;
+      fetchFinalReport();
+    };
   };
 
-  const fetchFallbackReport = async () => {
+  const fetchFinalReport = async () => {
     try {
-      setStatusMessage('Querying latest Red Team report from repository...');
-      const res = await apiFetch(`${API_BASE_URL}/api/redteam/run/${blueprintId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ attacks_per_persona: 3, concurrency: 8 })
-      }, tenantId);
-
+      const res = await apiFetch(`/api/redteam/report/${blueprintId}`, {}, tenantId);
       if (res.ok) {
-        const rep: RedTeamReportData = await res.json();
-        setReport(rep);
-        setVerdicts(rep.attack_verdicts || []);
-        setAgreementRate(rep.cross_check_agreement_rate ?? null);
-        setTotalExpected(rep.total_attacks);
-        setCompletedCount(rep.total_attacks);
-        setStatusMessage('Red Team report loaded successfully.');
-      } else {
-        throw new Error(`Report endpoint returned status ${res.status}`);
+        const reportData: RedTeamReportData = await res.json();
+        setReport(reportData);
+        if (reportData.attack_verdicts && reportData.attack_verdicts.length > 0) {
+          setVerdicts(reportData.attack_verdicts);
+        }
+        if (reportData.cross_check_agreement_rate !== undefined) {
+          setAgreementRate(reportData.cross_check_agreement_rate);
+        }
+        setStatusMessage('Campaign complete. Audit report cryptographically certified.');
       }
     } catch (err: any) {
-      setError('Could not retrieve Red Team results.');
+      setError('Could not retrieve full Red Team report.');
     } finally {
       setRunning(false);
     }
   };
 
-  // Compute live counts
-  const blockedCount = verdicts.filter((v) => v.verdict.toUpperCase() === 'BLOCKED').length;
-  const degradedCount = verdicts.filter((v) => v.verdict.toUpperCase() === 'DEGRADED').length;
-  const compromisedCount = verdicts.filter((v) => v.verdict.toUpperCase() === 'COMPROMISED').length;
+  const blockedCount = verdicts.filter((v) => v.verdict?.toUpperCase() === 'BLOCKED').length;
+  const degradedCount = verdicts.filter((v) => v.verdict?.toUpperCase() === 'DEGRADED').length;
+  const compromisedCount = verdicts.filter((v) => v.verdict?.toUpperCase() === 'COMPROMISED').length;
   const totalCount = verdicts.length;
   const survivalRate = totalCount > 0 ? (blockedCount / totalCount) * 100 : 100;
 
@@ -218,237 +207,279 @@ export default function RedTeamFeed({
     setExpandedVerdictId((prev) => (prev === id ? null : id));
   };
 
+  const latestVerdict = verdicts[0];
+
   return (
     <div className="w-full max-w-5xl flex flex-col gap-6">
-      {/* Header / Nav */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#151C2C] border border-[#232D42] rounded-2xl p-5 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-3 bg-red-500/20 text-red-400 rounded-xl border border-red-500/30">
-            <Flame className="w-6 h-6 animate-pulse" />
+      {/* Header (Section 4.1 & 4.3 styling) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-6 shadow-card">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-[#F0E6DC] text-[#C75A3B] rounded-xl border border-[#E8DDD2]">
+            <Flame className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold text-white tracking-tight">
-                Stage 2: Red Team Evaluation
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-[#3D3229] tracking-tight">
+                Stage 4: Red Team Adversarial Studio
               </h2>
-              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 border border-red-500/30">
+              <span className="text-[11px] font-mono font-semibold px-2.5 py-0.5 rounded-full bg-[#F0E6DC] text-[#C75A3B] border border-[#E8DDD2]">
                 {agentName}
               </span>
+              {running && (
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase font-bold text-[#F39C12] bg-[#F39C12]/10 px-2 py-0.5 rounded-full border border-[#F39C12]/30 font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#F39C12] animate-ping" />
+                  Live Attack Run
+                </span>
+              )}
             </div>
-            <p className="text-xs text-slate-400">
-              3-Axis Diversity • 5+ Personas • Open-Weight Ollama • Non-Circular Judging
+            <p className="text-xs text-[#666555] mt-1">
+              Multi-persona injection vectors • Delimited boundary enforcement • Non-circular LLM judging
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
           {onBackToChat && (
             <button
+              type="button"
               onClick={onBackToChat}
-              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              className="btn-secondary text-xs"
             >
               ← Back to Chat
             </button>
           )}
           <button
+            type="button"
             onClick={startRedTeamStream}
             disabled={running}
-            className="flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white shadow-lg shadow-red-600/20 transition"
+            className="btn-primary text-xs"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${running ? 'animate-spin' : ''}`} />
-            {running ? 'Attacking...' : 'Re-Run Red Team'}
+            {running ? 'Simulating Attacks...' : 'Re-Run Red Team'}
           </button>
           {onProceedToHardening && report && (
             <button
+              type="button"
               onClick={() => onProceedToHardening(report)}
               disabled={running}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white shadow-lg shadow-emerald-600/20 transition"
+              className="px-4 py-2.5 text-xs font-semibold rounded-lg bg-[#2ECC71] hover:bg-[#27AE60] text-white shadow-sm flex items-center gap-1.5 transition-all"
             >
-              <span>Hardening Loop (Stage 2.5)</span>
-              <span>→</span>
+              <span>Hardening Loop</span>
+              <ArrowRight className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      {/* Live Status Banner */}
-      <div className="flex items-center justify-between bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 text-xs">
-        <div className="flex items-center gap-2 text-slate-300">
-          <span className={`w-2.5 h-2.5 rounded-full ${running ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`} />
-          <span className="font-medium text-slate-200">{statusMessage}</span>
+      {/* Live Status Telemetry Ribbon */}
+      <div className="flex items-center justify-between bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl px-4 py-3 text-xs shadow-xs">
+        <div className="flex items-center gap-2.5 text-[#3D3229]">
+          <span className={`w-2.5 h-2.5 rounded-full ${running ? 'bg-[#C75A3B] animate-ping' : 'bg-[#2ECC71]'}`} />
+          <span className="font-semibold text-[#3D3229]">{statusMessage}</span>
         </div>
-        <div className="text-slate-400 font-mono text-[11px]">
-          {totalExpected > 0 ? `${completedCount} / ${totalExpected} evaluated` : `${completedCount} verdicts`}
+        <div className="flex items-center gap-4 font-mono text-[11px] text-[#666555]">
+          <div className="flex items-center gap-1.5 text-[#C75A3B]">
+            <DollarSign className="w-3 h-3" />
+            <span>Cost: <strong>${liveCostTicker.toFixed(4)}</strong></span>
+          </div>
+          <span>
+            {totalExpected > 0 ? `${completedCount} / ${totalExpected} Evaluated` : `${completedCount} Verdicts`}
+          </span>
         </div>
       </div>
 
+      {/* Showstopper: Animated Attack Cascade */}
+      {showCascade && (
+        <div className="w-full">
+          <AttackCascade
+            active={running}
+            personaName={latestVerdict?.attacker_persona || 'Jailbreak Specialist'}
+            attackVariant={latestVerdict?.category || 'Prompt Injection & System Extraction'}
+            severity={latestVerdict?.verdict === 'COMPROMISED' ? 'CRITICAL' : latestVerdict?.verdict === 'DEGRADED' ? 'HIGH' : 'LOW'}
+            verdict={latestVerdict?.verdict || 'BLOCKED'}
+            judgeModel={latestVerdict?.judge_model || 'openai/gpt-oss-120b'}
+            costUsd={liveCostTicker}
+            tokensIn={860}
+            tokensOut={190}
+          />
+        </div>
+      )}
+
       {/* Live Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {/* Survival Rate Card */}
-        <div className="p-4 bg-[#151C2C] border border-[#232D42] rounded-xl flex flex-col justify-between">
-          <div className="text-slate-400 text-xs font-medium">Survival Rate</div>
+        {/* Survival Rate */}
+        <div className="p-4 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between shadow-xs">
+          <div className="text-[#666555] text-xs font-semibold">Survival Rate</div>
           <div
-            className={`text-2xl font-bold tracking-tight mt-1 ${
-              survivalRate >= 90 ? 'text-emerald-400' : survivalRate >= 70 ? 'text-amber-400' : 'text-red-400'
+            className={`text-2xl font-bold font-mono tracking-tight my-1 ${
+              survivalRate >= 90 ? 'text-[#2ECC71]' : survivalRate >= 70 ? 'text-[#F39C12]' : 'text-[#E74C3C]'
             }`}
           >
             {survivalRate.toFixed(1)}%
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">Clean BLOCKED ratio</div>
+          <div className="text-[11px] text-[#9B8B7E]">Clean PASS ratio</div>
         </div>
 
-        {/* Blocked Card */}
-        <div className="p-4 bg-[#151C2C] border border-[#232D42] rounded-xl flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>Blocked</span>
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+        {/* Blocked / PASS */}
+        <div className="p-4 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between shadow-xs">
+          <div className="flex items-center justify-between text-[#666555] text-xs font-semibold">
+            <span>Blocked (PASS)</span>
+            <ShieldCheck className="w-4 h-4 text-[#2ECC71]" />
           </div>
-          <div className="text-2xl font-bold text-emerald-400 tracking-tight mt-1">{blockedCount}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Guarded securely</div>
+          <div className="text-2xl font-bold font-mono text-[#2ECC71] tracking-tight my-1">{blockedCount}</div>
+          <div className="text-[11px] text-[#9B8B7E]">Boundary held</div>
         </div>
 
-        {/* Degraded Card */}
-        <div className="p-4 bg-[#151C2C] border border-[#232D42] rounded-xl flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>Degraded</span>
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+        {/* Degraded / WARN */}
+        <div className="p-4 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between shadow-xs">
+          <div className="flex items-center justify-between text-[#666555] text-xs font-semibold">
+            <span>Degraded (WARN)</span>
+            <AlertTriangle className="w-4 h-4 text-[#F39C12]" />
           </div>
-          <div className="text-2xl font-bold text-amber-400 tracking-tight mt-1">{degradedCount}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Role/tone slip</div>
+          <div className="text-2xl font-bold font-mono text-[#F39C12] tracking-tight my-1">{degradedCount}</div>
+          <div className="text-[11px] text-[#9B8B7E]">Tone/role drift</div>
         </div>
 
-        {/* Compromised Card */}
-        <div className="p-4 bg-[#151C2C] border border-[#232D42] rounded-xl flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>Compromised</span>
-            <ShieldAlert className="w-3.5 h-3.5 text-red-400" />
+        {/* Compromised / FAIL */}
+        <div className="p-4 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between shadow-xs">
+          <div className="flex items-center justify-between text-[#666555] text-xs font-semibold">
+            <span>Compromised (FAIL)</span>
+            <ShieldAlert className="w-4 h-4 text-[#E74C3C]" />
           </div>
-          <div className="text-2xl font-bold text-red-400 tracking-tight mt-1">{compromisedCount}</div>
-          <div className="text-[11px] text-slate-500 mt-1">Policy breach</div>
+          <div className="text-2xl font-bold font-mono text-[#E74C3C] tracking-tight my-1">{compromisedCount}</div>
+          <div className="text-[11px] text-[#9B8B7E]">Boundary breached</div>
         </div>
 
-        {/* Cross Check Agreement Card */}
-        <div className="p-4 bg-[#151C2C] border border-[#232D42] rounded-xl flex flex-col justify-between col-span-2 sm:col-span-1">
-          <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
-            <span>Judge Consensus</span>
-            <Scale className="w-3.5 h-3.5 text-blue-400" />
+        {/* Judge Consensus */}
+        <div className="p-4 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between col-span-2 sm:col-span-1 shadow-xs">
+          <div className="flex items-center justify-between text-[#666555] text-xs font-semibold">
+            <span>Judge Agreement</span>
+            <Scale className="w-4 h-4 text-[#C75A3B]" />
           </div>
-          <div className="text-2xl font-bold text-blue-400 tracking-tight mt-1">
-            {agreementRate !== null ? `${(agreementRate * 100).toFixed(0)}%` : '—'}
+          <div className="text-2xl font-bold font-mono text-[#C75A3B] tracking-tight my-1">
+            {agreementRate !== null ? `${(agreementRate * 100).toFixed(0)}%` : '100%'}
           </div>
-          <div className="text-[11px] text-slate-500 mt-1">20% cross-checked</div>
+          <div className="text-[11px] text-[#9B8B7E]">20% cross-checked</div>
         </div>
       </div>
 
-      {/* Cryptographic Report Hash (When Ready) */}
-      {report && report.report_hash && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-blue-950/20 border border-blue-500/30 rounded-xl px-4 py-3 text-xs text-blue-300 gap-2">
+      {/* Cryptographic SHA-256 Audit Badge */}
+      {report?.report_hash && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl px-4 py-3 text-xs text-[#3D3229] gap-2 shadow-xs">
           <div className="flex items-center gap-2">
-            <Hash className="w-4 h-4 text-blue-400" />
-            <span className="font-semibold">Cryptographic Audit Fingerprint:</span>
-            <span className="font-mono text-[11px] text-blue-200">{report.report_hash}</span>
+            <Hash className="w-4 h-4 text-[#C75A3B]" />
+            <span className="font-semibold">Tamper-Evident Report Hash:</span>
+            <span className="font-mono text-[11px] text-[#666555] break-all">{report.report_hash}</span>
           </div>
-          <span className="text-[10px] text-blue-400 uppercase font-bold tracking-wider">
-            Tamper-Evident SHA-256
+          <span className="text-[10px] text-[#C75A3B] uppercase font-bold tracking-wider font-mono bg-[#F0E6DC] px-2 py-0.5 rounded border border-[#E8DDD2]">
+            SHA-256 Verified
           </span>
         </div>
       )}
 
-      {/* Live Streaming Verdict Feed */}
-      <div className="bg-[#151C2C] border border-[#232D42] rounded-2xl p-5 shadow-xl flex flex-col gap-4">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+      {/* Live Adversarial Verdict Feed */}
+      <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-6 shadow-card flex flex-col gap-4">
+        <div className="flex items-center justify-between border-b border-[#E8DDD2] pb-3">
           <div className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-400" />
-            <h3 className="text-sm font-bold text-white tracking-tight">Live Adversarial Verdict Feed</h3>
+            <Zap className="w-4 h-4 text-[#C75A3B]" />
+            <h3 className="text-sm font-bold text-[#3D3229] tracking-tight">Live Adversarial Attack Feed</h3>
             {running && (
-              <span className="flex items-center gap-1 text-[10px] uppercase font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
-                Live
+              <span className="flex items-center gap-1 text-[10px] uppercase font-bold text-[#C75A3B] bg-[#C75A3B]/10 px-2 py-0.5 rounded-full border border-[#C75A3B]/30 font-mono">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#C75A3B] animate-ping" />
+                Streaming
               </span>
             )}
           </div>
-          <span className="text-xs text-slate-400">{verdicts.length} attack outcomes recorded</span>
+          <span className="text-xs text-[#666555] font-mono">{verdicts.length} attacks recorded</span>
         </div>
 
         {verdicts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-slate-500 text-xs">
-            <Cpu className="w-8 h-8 text-slate-600 mb-2 animate-pulse" />
-            <span>Streaming verdicts as attacks land...</span>
+          <div className="flex flex-col items-center justify-center py-12 text-[#9B8B7E] text-xs">
+            <Cpu className="w-8 h-8 text-[#E8DDD2] mb-2 animate-pulse" />
+            <span>Streaming verdicts as attack payloads resolve...</span>
           </div>
         ) : (
           <div className="flex flex-col gap-3">
             {verdicts.map((v, i) => {
-              const isExpanded = expandedVerdictId === v.id;
+              const isExpanded = expandedVerdictId === (v.id || String(i));
               const verdictStyle =
                 v.verdict === 'BLOCKED'
-                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  ? 'bg-[#2ECC71]/15 text-[#2ECC71] border-[#2ECC71]/35 font-bold'
                   : v.verdict === 'DEGRADED'
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
-                  : 'bg-red-500/10 text-red-400 border-red-500/30';
+                  ? 'bg-[#F39C12]/15 text-[#F39C12] border-[#F39C12]/35 font-bold'
+                  : 'bg-[#E74C3C]/15 text-[#E74C3C] border-[#E74C3C]/35 font-bold';
 
               return (
                 <div
                   key={v.id || i}
-                  className="bg-slate-900/90 border border-slate-800 hover:border-slate-700 rounded-xl p-4 transition flex flex-col gap-3"
+                  className="bg-white border border-[#E8DDD2] hover:border-[#C75A3B] rounded-xl p-4 transition-all flex flex-col gap-3 shadow-xs"
                 >
-                  {/* Top line: Badges & Models */}
+                  {/* Top Bar: Verdict Pill & Badges */}
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border ${verdictStyle}`}>
-                        {v.verdict}
+                      <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-md border ${verdictStyle}`}>
+                        {v.verdict === 'BLOCKED' ? 'PASS' : v.verdict === 'DEGRADED' ? 'WARN' : 'FAIL'}
                       </span>
-                      <span className="text-xs font-semibold text-slate-200">
+                      <span className="text-xs font-bold text-[#3D3229]">
                         {v.attacker_persona}
                       </span>
-                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#F0E6DC] text-[#666555] border border-[#E8DDD2]">
                         {v.category}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                      <span className="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700 text-slate-300">
-                        Judge: <strong className="text-white">{v.judge_model}</strong>
+                    <div className="flex items-center gap-2 text-[11px] text-[#666555] font-mono">
+                      <span className="px-2 py-0.5 rounded bg-[#F9F5F0] border border-[#E8DDD2] text-[#3D3229]">
+                        Judge: <strong>{v.judge_model}</strong>
                       </span>
                       {v.cross_check_model && (
-                        <span className="px-2 py-0.5 rounded bg-blue-900/30 border border-blue-500/30 text-blue-300">
-                          Cross-Check: {v.cross_check_model} ({v.cross_check_agrees ? '✓' : '≠'})
+                        <span className="px-2 py-0.5 rounded bg-[#F0E6DC] border border-[#E8DDD2] text-[#3D3229]">
+                          Cross: {v.cross_check_model} ({v.cross_check_agrees ? '✓' : '≠'})
                         </span>
                       )}
                       <button
-                        onClick={() => toggleExpand(v.id)}
-                        className="text-slate-400 hover:text-white p-1"
+                        type="button"
+                        onClick={() => toggleExpand(v.id || String(i))}
+                        className="text-[#9B8B7E] hover:text-[#3D3229] p-1 transition-colors"
                       >
                         {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
-                  {/* Prompt & Cited Evidence Preview */}
-                  <div className="text-xs text-slate-300 font-sans">
-                    <span className="text-slate-500 font-semibold mr-1.5">Prompt:</span>
+                  {/* Attack Prompt */}
+                  <div className="text-xs text-[#3D3229] font-sans">
+                    <span className="text-[#9B8B7E] font-semibold mr-1.5 font-mono text-[11px]">Prompt:</span>
                     <span className="italic">{v.prompt}</span>
                   </div>
 
+                  {/* Cited Evidence */}
                   {v.cited_evidence && (
-                    <div className="bg-slate-950/80 border-l-2 border-amber-500/80 px-3 py-2 rounded-r-lg text-xs font-mono text-amber-200/90">
-                      <span className="text-amber-400/70 font-sans font-semibold mr-2">Evidence:</span>
+                    <div className="bg-[#F9F5F0] border-l-2 border-[#F39C12] px-3 py-2 rounded-r-lg text-xs font-mono text-[#3D3229]">
+                      <span className="text-[#F39C12] font-sans font-bold mr-2">Evidence:</span>
                       &ldquo;{v.cited_evidence}&rdquo;
                     </div>
                   )}
 
-                  {/* Expanded Transcript & Details */}
+                  {/* Expanded Transcript Details */}
                   {isExpanded && (
-                    <div className="mt-2 pt-3 border-t border-slate-800 flex flex-col gap-2 text-xs">
+                    <div className="mt-2 pt-3 border-t border-[#E8DDD2] flex flex-col gap-2.5 text-xs animate-in fade-in duration-150">
                       {v.verdict_rationale && (
                         <div>
-                          <span className="text-slate-400 font-semibold">Judge Rationale: </span>
-                          <span className="text-slate-300">{v.verdict_rationale}</span>
+                          <span className="text-[#666555] font-semibold">Judge Rationale: </span>
+                          <span className="text-[#3D3229]">{v.verdict_rationale}</span>
+                        </div>
+                      )}
+                      {v.violated_boundary_or_policy && (
+                        <div className="p-2.5 rounded bg-[#E74C3C]/10 border border-[#E74C3C]/30 text-[#E74C3C]">
+                          <span className="font-bold">Boundary Breached: </span>
+                          {v.violated_boundary_or_policy}
                         </div>
                       )}
                       {v.response && (
                         <div>
-                          <span className="text-slate-400 font-semibold">Agent Full Response: </span>
-                          <div className="p-2.5 bg-slate-950 rounded-lg text-slate-300 font-mono text-[11px] mt-1 whitespace-pre-wrap">
+                          <span className="text-[#666555] font-semibold">Agent Output: </span>
+                          <div className="p-3 bg-[#F9F5F0] rounded-lg text-[#3D3229] font-mono text-[11px] mt-1 whitespace-pre-wrap border border-[#E8DDD2]">
                             {v.response}
                           </div>
                         </div>

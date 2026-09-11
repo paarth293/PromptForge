@@ -3,13 +3,38 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 236, 240, 246;
-  --background-start-rgb: 10, 13, 20;
-  --background-end-rgb: 16, 22, 36;
+  /* Specification 3.1 Color Palette */
+  --foreground-rgb: 61, 50, 41;          /* Primary Text: #3D3229 */
+  --background-start-rgb: 249, 245, 240; /* Warm Cream: #F9F5F0 */
+  --background-end-rgb: 240, 230, 220;   /* Warm Beige: #F0E6DC */
+
+  /* Primary Brand Colors */
+  --primary-orange-rust: #C75A3B;
+  --primary-orange-light: #D97D5E;
+  --primary-cream: #F9F5F0;
+  --primary-beige: #F0E6DC;
+  --primary-white-cream: #FBF8F4;
+  --primary-tan-border: #E8DDD2;
+
+  /* Semantic Colors */
+  --success: #2ECC71;
+  --warning: #F39C12;
+  --critical: #E74C3C;
+  --neutral-gray: #9B8B7E;
+
+  /* Text Colors */
+  --text-primary: #3D3229;
+  --text-secondary: #666555;
+  --text-disabled: #B0A89E;
+
+  /* Gradients */
+  --gradient-primary: linear-gradient(135deg, #C75A3B 0%, #D97D5E 100%);
+  --gradient-success: linear-gradient(135deg, #2ECC71 0%, #27AE60 100%);
+  --gradient-progress: linear-gradient(90deg, #C75A3B 0%, #2ECC71 100%);
 }
 
 * {
-  border-color: theme('colors.forge.border');
+  border-color: var(--primary-tan-border, #E8DDD2);
 }
 
 html {
@@ -17,8 +42,8 @@ html {
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(to bottom, transparent, rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
+  color: #3D3229;
+  background-color: #F9F5F0;
   background-attachment: fixed;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
@@ -26,34 +51,34 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* Consistent, calmer focus ring across the app instead of the default blue browser outline */
+/* Focused elements */
 :focus-visible {
-  outline: 2px solid rgba(59, 130, 246, 0.6);
+  outline: 2px solid #C75A3B;
   outline-offset: 2px;
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
-/* Thin, low-contrast scrollbars that match the dark theme instead of the default chrome */
+/* Warm Scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #F9F5F0;
 }
 ::-webkit-scrollbar-thumb {
-  background-color: #232D42;
+  background-color: #E8DDD2;
   border-radius: 999px;
+  border: 2px solid #F9F5F0;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #2E3B57;
+  background-color: #C75A3B;
 }
 * {
   scrollbar-width: thin;
-  scrollbar-color: #232D42 transparent;
+  scrollbar-color: #E8DDD2 #F9F5F0;
 }
 
-/* Utility to hide scrollbars entirely for horizontally-scrolling strips (breadcrumbs, chip rows) */
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -62,14 +87,93 @@ body {
   display: none;
 }
 
-/*
- * Minimal "enter transition" shim.
- * The UI is written throughout with tailwindcss-animate class names
- * (animate-in / fade-in / zoom-in-95 / duration-*) but that plugin was
- * never added to this project, so every one of those classes was
- * previously inert — nothing animated on mount anywhere in the app.
- * This reproduces just the handful of combinations actually used.
- */
+/* Smart Card Design System Component (Section 4.3) */
+.smart-card {
+  background-color: #FBF8F4;
+  border: 1px solid #E8DDD2;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.smart-card:hover {
+  border-color: #C75A3B;
+  box-shadow: 0 4px 12px rgba(199, 90, 59, 0.12);
+  transform: translateY(-1px);
+}
+.smart-card.loading {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+/* Primary Button (Section 4.2) */
+.btn-primary {
+  background-color: #C75A3B;
+  color: #FFFFFF;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 8px;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: 0 4px 12px rgba(199, 90, 59, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: #B84A2F;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(199, 90, 59, 0.35);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(199, 90, 59, 0.2);
+}
+
+/* Secondary Button (Section 4.2) */
+.btn-secondary {
+  background-color: #FFFFFF;
+  border: 1px solid #E8DDD2;
+  color: #C75A3B;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: #FBF8F4;
+  border-color: #C75A3B;
+  color: #B84A2F;
+  transform: translateY(-1px);
+}
+
+/* Shimmer animations */
+@keyframes progressPulse {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.progress-bar-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(199, 90, 59, 0.3) 0%,
+    rgba(199, 90, 59, 0.85) 50%,
+    rgba(199, 90, 59, 0.3) 100%
+  );
+  background-size: 400px 100%;
+  animation: progressPulse 1.8s ease-in-out infinite;
+}
+
 @layer utilities {
   .animate-in {
     animation-fill-mode: both;
@@ -95,16 +199,18 @@ body {
 @keyframes forge-fade-in {
   from {
     opacity: 0;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
+    transform: translateY(0);
   }
 }
 
 @keyframes forge-zoom-in-95 {
   from {
     opacity: 0;
-    transform: scale(0.95);
+    transform: scale(0.97);
   }
   to {
     opacity: 1;
@@ -113,7 +219,8 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-in {
+  .animate-in, .smart-card, .btn-primary, .btn-secondary {
     animation: none !important;
+    transition: none !important;
   }
 }

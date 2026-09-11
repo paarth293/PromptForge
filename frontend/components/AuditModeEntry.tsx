@@ -266,24 +266,24 @@ export default function AuditModeEntry({
     <div className="w-full space-y-8 animate-in fade-in duration-300">
       {/* Header Info */}
       <div className="text-center space-y-3 max-w-2xl mx-auto pt-2">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#F0E6DC] text-[#2ECC71] text-xs font-mono font-semibold uppercase tracking-wider border border-[#E8DDD2]">
           <ShieldAlert className="w-3.5 h-3.5" />
           Mode 2: AUDIT — Bring Your Own Agent
         </div>
-        <h2 className="text-3xl font-extrabold text-white tracking-tight">
-          Audit & Certify Existing AI Agents
+        <h2 className="text-3xl font-extrabold text-[#3D3229] tracking-tight">
+          Audit &amp; Certify Existing AI Agents
         </h2>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm text-[#666555]">
           Paste any raw prompt, OpenAI GPT definition, or AWS Bedrock agent. PromptForge skips Forge chains entirely,
           running your agent directly through Red Team attacks, self-hardening repair, ground-truth verification, and cryptographic certification.
         </p>
       </div>
 
       {/* Main Audit Form Box */}
-      <div className="bg-[#121826] border border-[#232D42] rounded-2xl p-6 md:p-8 shadow-2xl space-y-6">
+      <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-6 md:p-8 shadow-card space-y-6">
         {/* Format Selector Tabs */}
         <div className="space-y-2">
-          <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+          <label className="block text-xs font-semibold uppercase tracking-wider text-[#3D3229]">
             Select Ingestion Format
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -292,14 +292,14 @@ export default function AuditModeEntry({
               onClick={() => setFormat('raw')}
               className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all text-left ${
                 format === 'raw'
-                  ? 'bg-blue-600/20 border-blue-500 text-white shadow-lg shadow-blue-500/10'
-                  : 'bg-[#0B0F17] border-[#232D42] text-slate-400 hover:border-slate-600'
+                  ? 'bg-white border-[#C75A3B] text-[#3D3229] shadow-sm ring-1 ring-[#C75A3B]'
+                  : 'bg-white border-[#E8DDD2] text-[#666555] hover:border-[#C75A3B]'
               }`}
             >
-              <FileText className={`w-5 h-5 ${format === 'raw' ? 'text-blue-400' : 'text-slate-500'}`} />
+              <FileText className={`w-5 h-5 ${format === 'raw' ? 'text-[#C75A3B]' : 'text-[#9B8B7E]'}`} />
               <div>
-                <div className="text-xs font-bold">Raw System Prompt</div>
-                <div className="text-[10px] text-slate-400">Plain text prompt & rules</div>
+                <div className="text-xs font-bold text-[#3D3229]">Raw System Prompt</div>
+                <div className="text-[10px] text-[#666555]">Plain text prompt &amp; rules</div>
               </div>
             </button>
 
@@ -308,14 +308,14 @@ export default function AuditModeEntry({
               onClick={() => setFormat('openai')}
               className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all text-left ${
                 format === 'openai'
-                  ? 'bg-emerald-600/20 border-emerald-500 text-white shadow-lg shadow-emerald-500/10'
-                  : 'bg-[#0B0F17] border-[#232D42] text-slate-400 hover:border-slate-600'
+                  ? 'bg-white border-[#2ECC71] text-[#3D3229] shadow-sm ring-1 ring-[#2ECC71]'
+                  : 'bg-white border-[#E8DDD2] text-[#666555] hover:border-[#2ECC71]'
               }`}
             >
-              <FileCode className={`w-5 h-5 ${format === 'openai' ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <FileCode className={`w-5 h-5 ${format === 'openai' ? 'text-[#2ECC71]' : 'text-[#9B8B7E]'}`} />
               <div>
-                <div className="text-xs font-bold">OpenAI GPT / Assistant</div>
-                <div className="text-[10px] text-slate-400">Instructions, tools & JSON config</div>
+                <div className="text-xs font-bold text-[#3D3229]">OpenAI GPT / Assistant</div>
+                <div className="text-[10px] text-[#666555]">Instructions, tools &amp; JSON config</div>
               </div>
             </button>
 
@@ -324,14 +324,14 @@ export default function AuditModeEntry({
               onClick={() => setFormat('bedrock')}
               className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all text-left ${
                 format === 'bedrock'
-                  ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg shadow-purple-500/10'
-                  : 'bg-[#0B0F17] border-[#232D42] text-slate-400 hover:border-slate-600'
+                  ? 'bg-white border-[#D97D5E] text-[#3D3229] shadow-sm ring-1 ring-[#D97D5E]'
+                  : 'bg-white border-[#E8DDD2] text-[#666555] hover:border-[#D97D5E]'
               }`}
             >
-              <Layers className={`w-5 h-5 ${format === 'bedrock' ? 'text-purple-400' : 'text-slate-500'}`} />
+              <Layers className={`w-5 h-5 ${format === 'bedrock' ? 'text-[#D97D5E]' : 'text-[#9B8B7E]'}`} />
               <div>
-                <div className="text-xs font-bold">AWS Bedrock Agent</div>
-                <div className="text-[10px] text-slate-400">ActionGroups & definition JSON</div>
+                <div className="text-xs font-bold text-[#3D3229]">AWS Bedrock Agent</div>
+                <div className="text-[10px] text-[#666555]">ActionGroups &amp; definition JSON</div>
               </div>
             </button>
           </div>
@@ -340,7 +340,7 @@ export default function AuditModeEntry({
         {/* Metadata Inputs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#3D3229] mb-1.5">
               Agent Name
             </label>
             <input
@@ -348,23 +348,23 @@ export default function AuditModeEntry({
               value={agentName}
               onChange={(e) => setAgentName(e.target.value)}
               placeholder="e.g. Acme Support Specialist"
-              className="w-full px-4 py-2.5 bg-[#0B0F17] border border-[#232D42] rounded-xl text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2.5 bg-white border border-[#E8DDD2] rounded-xl text-xs text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B]"
             />
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#3D3229] mb-1.5">
               Target Domain
             </label>
             <select
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
-              className="w-full px-4 py-2.5 bg-[#0B0F17] border border-[#232D42] rounded-xl text-xs text-white focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-2.5 bg-white border border-[#E8DDD2] rounded-xl text-xs text-[#3D3229] focus:outline-none focus:border-[#C75A3B]"
             >
               <option value="customer_support">Customer Support</option>
               <option value="it_support">IT Support / Internal Tools</option>
-              <option value="finance">Finance & Accounting</option>
+              <option value="finance">Finance &amp; Accounting</option>
               <option value="healthcare">Healthcare (High-Risk Auto-Disclaimers)</option>
-              <option value="legal">Legal & Compliance</option>
+              <option value="legal">Legal &amp; Compliance</option>
               <option value="general">General Purpose</option>
             </select>
           </div>
@@ -373,13 +373,13 @@ export default function AuditModeEntry({
         {/* Content Area / Drag & Drop */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[#3D3229]">
               {format === 'raw' ? 'Agent System Prompt & Instructions' : `${format.toUpperCase()} Agent JSON Configuration`}
             </label>
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1.5 font-medium"
+              className="text-[11px] text-[#C75A3B] hover:text-[#B84A2F] flex items-center gap-1.5 font-medium"
             >
               <Upload className="w-3.5 h-3.5" />
               Upload file (.json, .txt)
@@ -406,8 +406,8 @@ export default function AuditModeEntry({
             }}
             className={`relative rounded-xl border transition-all ${
               dragActive
-                ? 'border-blue-500 bg-blue-500/10'
-                : 'border-[#232D42] bg-[#0B0F17]'
+                ? 'border-[#C75A3B] bg-[#F0E6DC]/40'
+                : 'border-[#E8DDD2] bg-white'
             }`}
           >
             <textarea
@@ -419,41 +419,41 @@ export default function AuditModeEntry({
                   ? 'Paste complete agent system prompt here...'
                   : 'Paste JSON agent configuration export here...'
               }
-              className="w-full p-4 bg-transparent text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none resize-y"
+              className="w-full p-4 bg-transparent text-xs font-mono text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none resize-y"
             />
           </div>
         </div>
 
         {/* STEP 70: Owner-Supplied Gold Q&A Benchmark */}
-        <div className="p-4 rounded-xl bg-[#0B0F17] border border-[#232D42] space-y-4">
+        <div className="p-4 rounded-xl bg-white border border-[#E8DDD2] space-y-4 shadow-xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="p-1 rounded bg-amber-500/20 text-amber-400 text-[10px] font-bold uppercase tracking-wider">
-                Step 70
+              <span className="px-2 py-0.5 rounded bg-[#F0E6DC] text-[#C75A3B] text-[10px] font-bold uppercase tracking-wider border border-[#E8DDD2]">
+                Ground Truth
               </span>
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
-                Owner-Supplied Gold Q&A Set (Primary Ground Truth)
+              <h4 className="text-xs font-bold text-[#3D3229] uppercase tracking-wider">
+                Owner-Supplied Gold Q&amp;A Set
               </h4>
             </div>
             <button
               type="button"
               onClick={addQAPair}
-              className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 text-[11px] font-semibold flex items-center gap-1 transition-all"
+              className="btn-secondary text-xs py-1 px-2.5"
             >
               <Plus className="w-3 h-3" />
               Add Test Case
             </button>
           </div>
 
-          <p className="text-[11px] text-slate-400">
-            In AUDIT mode, your supplied Q&A set is the <strong>primary ground truth benchmark</strong> (100% weighted in accuracy scoring) rather than synthetic generic probes.
+          <p className="text-[11px] text-[#666555]">
+            In AUDIT mode, your supplied Q&amp;A set is the <strong>primary ground truth benchmark</strong> (100% weighted in accuracy scoring) rather than synthetic generic probes.
           </p>
 
           <div className="space-y-3">
             {goldQA.map((pair, index) => (
               <div
                 key={index}
-                className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 rounded-lg bg-[#121826] border border-[#232D42] items-start"
+                className="grid grid-cols-1 md:grid-cols-12 gap-2 p-3 rounded-lg bg-[#F9F5F0] border border-[#E8DDD2] items-start"
               >
                 <div className="md:col-span-5">
                   <input
@@ -461,7 +461,7 @@ export default function AuditModeEntry({
                     value={pair.question}
                     onChange={(e) => updateQAPair(index, 'question', e.target.value)}
                     placeholder="User question or test prompt"
-                    className="w-full px-3 py-2 bg-[#0B0F17] border border-[#232D42] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-[#E8DDD2] rounded-lg text-xs text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B]"
                   />
                 </div>
                 <div className="md:col-span-6">
@@ -470,7 +470,7 @@ export default function AuditModeEntry({
                     value={pair.answer}
                     onChange={(e) => updateQAPair(index, 'answer', e.target.value)}
                     placeholder="Expected factual answer or required policy action"
-                    className="w-full px-3 py-2 bg-[#0B0F17] border border-[#232D42] rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 bg-white border border-[#E8DDD2] rounded-lg text-xs text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B]"
                   />
                 </div>
                 <div className="md:col-span-1 flex justify-end">
@@ -478,7 +478,7 @@ export default function AuditModeEntry({
                     type="button"
                     onClick={() => removeQAPair(index)}
                     disabled={goldQA.length <= 1}
-                    className="p-2 text-slate-500 hover:text-rose-400 disabled:opacity-30 transition-colors"
+                    className="p-2 text-[#9B8B7E] hover:text-[#E74C3C] disabled:opacity-30 transition-colors"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -489,9 +489,9 @@ export default function AuditModeEntry({
         </div>
 
         {/* Action Button */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-[#232D42]">
-          <div className="text-xs text-slate-500 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-[#E8DDD2]">
+          <div className="text-xs text-[#666555] flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#2ECC71]" />
             Bypasses Forge (0 chains) • Red Team → Harden → Verify → Shield → Birth Certificate
           </div>
 
@@ -499,12 +499,12 @@ export default function AuditModeEntry({
             type="button"
             onClick={handleRunAudit}
             disabled={loading || !content.trim()}
-            className="w-full sm:w-auto px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xl shadow-emerald-600/20 disabled:opacity-50 transition-all"
+            className="btn-primary text-xs py-3 px-6 bg-[#2ECC71] hover:bg-[#27AE60]"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Auditing & Certifying Agent...
+                Auditing &amp; Certifying Agent...
               </>
             ) : (
               <>
@@ -518,7 +518,7 @@ export default function AuditModeEntry({
 
       {/* Preset Cards */}
       <div className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-[#666555]">
           Or load a sample agent to audit:
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -527,16 +527,16 @@ export default function AuditModeEntry({
               key={idx}
               type="button"
               onClick={() => handleApplyPreset(preset)}
-              className="p-4 rounded-xl bg-[#121826] border border-[#232D42] hover:border-emerald-500/50 text-left transition-all hover:shadow-lg hover:shadow-emerald-500/5 group"
+              className="p-4 rounded-xl bg-white border border-[#E8DDD2] hover:border-[#2ECC71] text-left transition-all hover:shadow-card-hover group shadow-xs"
             >
-              <div className="text-sm font-semibold text-white group-hover:text-emerald-400 flex items-center justify-between">
+              <div className="text-sm font-semibold text-[#3D3229] group-hover:text-[#2ECC71] flex items-center justify-between">
                 {preset.title}
-                <Sparkles className="w-3.5 h-3.5 opacity-60 text-emerald-400" />
+                <Sparkles className="w-3.5 h-3.5 opacity-60 text-[#2ECC71]" />
               </div>
-              <div className="text-[11px] text-slate-500 uppercase font-mono mt-1">
+              <div className="text-[11px] text-[#666555] uppercase font-mono mt-1">
                 Format: {preset.format.toUpperCase()} • Domain: {preset.domain}
               </div>
-              <p className="text-xs text-slate-400 mt-2 line-clamp-2">
+              <p className="text-xs text-[#666555] mt-2 line-clamp-2">
                 {preset.format === 'raw' ? preset.content : 'Pre-configured JSON export with tools and owner gold Q&A'}
               </p>
             </button>

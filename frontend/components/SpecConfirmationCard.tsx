@@ -88,34 +88,34 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
   };
 
   return (
-    <div className="w-full bg-[#121826] border border-[#232D42] rounded-2xl p-6 shadow-2xl space-y-6">
+    <div className="w-full bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-6 shadow-card space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between border-b border-[#232D42] pb-4">
+      <div className="flex items-start justify-between border-b border-[#E8DDD2] pb-4">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              Stage 0: Intent Confirmation
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0E6DC] text-[#C75A3B] border border-[#E8DDD2]">
+              Stage 2: Intent &amp; Boundary Confirmation
             </span>
             {spec.risk_domain && spec.risk_domain !== 'general' && (
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F39C12]/15 text-[#F39C12] border border-[#F39C12]/30 flex items-center gap-1">
                 <ShieldAlert className="w-3 h-3" />
                 Risk Domain: {spec.risk_domain}
               </span>
             )}
           </div>
-          <h2 className="text-xl font-bold text-white mt-1.5 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-blue-400" />
+          <h2 className="text-xl font-bold text-[#3D3229] mt-2 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-[#C75A3B]" />
             Confirmed Specification for &ldquo;{spec.agent_name}&rdquo;
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
-            Review and correct what the machine inferred before generating prompts and running attacks.
+          <p className="text-xs text-[#666555] mt-1">
+            Review and adjust inferred capabilities and boundaries before generating CRISPE prompts and initiating attacks.
           </p>
         </div>
       </div>
 
       {/* Inferred Capabilities */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[#3D3229]">
           Inferred Capabilities ({spec.inferred_capabilities.length})
         </h3>
         <div className="space-y-2">
@@ -124,8 +124,8 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
               key={idx}
               className={`p-3.5 rounded-xl border transition-all ${
                 cap.confirmed
-                  ? 'bg-[#0F1420] border-[#232D42] text-slate-200'
-                  : 'bg-slate-900/40 border-slate-800 text-slate-500 line-through'
+                  ? 'bg-white border-[#E8DDD2] text-[#3D3229] shadow-xs'
+                  : 'bg-[#F0E6DC]/40 border-[#E8DDD2] text-[#9B8B7E] line-through'
               }`}
             >
               <div className="flex items-start justify-between gap-3">
@@ -135,22 +135,22 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
                     onClick={() => toggleCapability(idx)}
                     className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center border transition-colors ${
                       cap.confirmed
-                        ? 'bg-blue-600 border-blue-500 text-white'
-                        : 'border-slate-700 bg-slate-800 text-transparent'
+                        ? 'bg-[#C75A3B] border-[#C75A3B] text-white'
+                        : 'border-[#E8DDD2] bg-white text-transparent'
                     }`}
                   >
                     <Check className="w-3.5 h-3.5" />
                   </button>
 
                   <div className="flex-1">
-                    <div className="text-sm font-semibold text-white">{cap.name}</div>
+                    <div className="text-sm font-semibold text-[#3D3229]">{cap.name}</div>
                     {editingCapIndex === idx ? (
                       <div className="mt-2 flex gap-2">
                         <input
                           type="text"
                           defaultValue={cap.description}
                           id={`edit-cap-${idx}`}
-                          className="flex-1 px-3 py-1.5 text-xs bg-[#0B0F17] border border-blue-500/50 rounded-lg text-white focus:outline-none"
+                          className="flex-1 px-3 py-1.5 text-xs bg-white border border-[#C75A3B] rounded-lg text-[#3D3229] focus:outline-none"
                         />
                         <button
                           type="button"
@@ -158,13 +158,13 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
                             const input = document.getElementById(`edit-cap-${idx}`) as HTMLInputElement;
                             updateCapability(idx, input.value);
                           }}
-                          className="px-3 py-1 bg-blue-600 text-xs rounded-lg text-white hover:bg-blue-500"
+                          className="btn-primary text-xs py-1 px-3"
                         >
                           Save
                         </button>
                       </div>
                     ) : (
-                      <p className="text-xs text-slate-400 mt-0.5">{cap.description}</p>
+                      <p className="text-xs text-[#666555] mt-0.5">{cap.description}</p>
                     )}
                   </div>
                 </div>
@@ -173,7 +173,7 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
                   <button
                     type="button"
                     onClick={() => setEditingCapIndex(editingCapIndex === idx ? null : idx)}
-                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800"
+                    className="p-1.5 text-[#666555] hover:text-[#3D3229] rounded-lg hover:bg-[#F0E6DC]"
                     title="Edit capability description"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -181,7 +181,7 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
                   <button
                     type="button"
                     onClick={() => removeCapability(idx)}
-                    className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-rose-500/10"
+                    className="p-1.5 text-[#666555] hover:text-[#E74C3C] rounded-lg hover:bg-[#E74C3C]/10"
                     title="Remove capability"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -199,12 +199,12 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
             placeholder="Add new capability (e.g. Escalate to supervisor)"
             value={newCapName}
             onChange={(e) => setNewCapName(e.target.value)}
-            className="flex-1 px-3 py-2 text-xs bg-[#0B0F17] border border-[#232D42] rounded-lg text-white focus:border-blue-500 focus:outline-none"
+            className="flex-1 px-3.5 py-2 text-xs bg-white border border-[#E8DDD2] rounded-lg text-[#3D3229] placeholder-[#9B8B7E] focus:border-[#C75A3B] focus:outline-none"
           />
           <button
             type="button"
             onClick={addCapability}
-            className="px-3 py-2 bg-[#1B2333] hover:bg-[#232D42] border border-[#232D42] text-xs text-slate-200 rounded-lg flex items-center gap-1.5"
+            className="btn-secondary text-xs"
           >
             <Plus className="w-3.5 h-3.5" /> Add
           </button>
@@ -212,21 +212,21 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
       </div>
 
       {/* Explicit Boundaries */}
-      <div className="space-y-3 pt-2 border-t border-[#232D42]">
-        <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
-          Strict Boundaries & Policy Caps ({spec.boundaries.length})
+      <div className="space-y-3 pt-2 border-t border-[#E8DDD2]">
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-[#3D3229]">
+          Strict Boundaries &amp; Policy Caps ({spec.boundaries.length})
         </h3>
         <div className="flex flex-wrap gap-2">
           {spec.boundaries.map((b, idx) => (
             <span
               key={idx}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-rose-500/10 text-rose-300 border border-rose-500/20"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-[#E74C3C]/10 text-[#E74C3C] border border-[#E74C3C]/20 font-medium"
             >
               <span>{b}</span>
               <button
                 type="button"
                 onClick={() => removeBoundary(idx)}
-                className="hover:text-rose-100"
+                className="hover:opacity-75 font-bold"
               >
                 &times;
               </button>
@@ -239,12 +239,12 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
             placeholder="Add boundary (e.g. Never issue refund above $500)"
             value={newBoundary}
             onChange={(e) => setNewBoundary(e.target.value)}
-            className="flex-1 px-3 py-2 text-xs bg-[#0B0F17] border border-[#232D42] rounded-lg text-white focus:border-blue-500 focus:outline-none"
+            className="flex-1 px-3.5 py-2 text-xs bg-white border border-[#E8DDD2] rounded-lg text-[#3D3229] placeholder-[#9B8B7E] focus:border-[#C75A3B] focus:outline-none"
           />
           <button
             type="button"
             onClick={addBoundary}
-            className="px-3 py-2 bg-[#1B2333] hover:bg-[#232D42] border border-[#232D42] text-xs text-slate-200 rounded-lg flex items-center gap-1.5"
+            className="btn-secondary text-xs"
           >
             <Plus className="w-3.5 h-3.5" /> Add Boundary
           </button>
@@ -252,25 +252,25 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
       </div>
 
       {/* Optional User Gold Q&A Set (Circularity Killer) */}
-      <div className="space-y-3 pt-2 border-t border-[#232D42]">
+      <div className="space-y-3 pt-2 border-t border-[#E8DDD2]">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wider text-slate-300">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-[#3D3229]">
             User-Supplied Gold Answers (Weighted Highest in Verify)
           </h3>
-          <span className="text-[11px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+          <span className="text-[11px] text-[#2ECC71] bg-[#2ECC71]/10 px-2 py-0.5 rounded border border-[#2ECC71]/20 font-bold">
             Non-Circular Truth
           </span>
         </div>
-        <p className="text-xs text-slate-400">
-          Paste real questions and expected facts from your business. PromptForge scores against your answers, not its own machine guesses.
+        <p className="text-xs text-[#666555]">
+          Paste real questions and expected facts from your domain. PromptForge verifies against your answers, not circular LLM hallucinations.
         </p>
 
         {spec.user_gold_qa && spec.user_gold_qa.length > 0 && (
           <div className="space-y-2">
             {spec.user_gold_qa.map((qa, i) => (
-              <div key={i} className="p-3 bg-[#0F1420] border border-[#232D42] rounded-lg text-xs space-y-1">
-                <div className="text-blue-300 font-medium">Q: {qa.question}</div>
-                <div className="text-slate-300">A: {qa.answer}</div>
+              <div key={i} className="p-3 bg-white border border-[#E8DDD2] rounded-lg text-xs space-y-1 shadow-xs">
+                <div className="text-[#C75A3B] font-semibold">Q: {qa.question}</div>
+                <div className="text-[#3D3229]">A: {qa.answer}</div>
               </div>
             ))}
           </div>
@@ -282,35 +282,35 @@ export default function SpecConfirmationCard({ spec: initialSpec, onConfirm, loa
             placeholder="Sample question (e.g. What is the return window?)"
             value={newQuestion}
             onChange={(e) => setNewQuestion(e.target.value)}
-            className="px-3 py-2 text-xs bg-[#0B0F17] border border-[#232D42] rounded-lg text-white focus:outline-none focus:border-blue-500"
+            className="px-3.5 py-2 text-xs bg-white border border-[#E8DDD2] rounded-lg text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B]"
           />
           <input
             type="text"
             placeholder="Expected answer (e.g. 30 days from purchase date)"
             value={newAnswer}
             onChange={(e) => setNewAnswer(e.target.value)}
-            className="px-3 py-2 text-xs bg-[#0B0F17] border border-[#232D42] rounded-lg text-white focus:outline-none focus:border-blue-500"
+            className="px-3.5 py-2 text-xs bg-white border border-[#E8DDD2] rounded-lg text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B]"
           />
         </div>
         <button
           type="button"
           onClick={addGoldQA}
-          className="px-3 py-1.5 bg-[#1B2333] hover:bg-[#232D42] border border-[#232D42] text-xs text-slate-200 rounded-lg flex items-center gap-1.5"
+          className="btn-secondary text-xs self-start"
         >
-          <Plus className="w-3.5 h-3.5" /> Add Gold Q&A
+          <Plus className="w-3.5 h-3.5" /> Add Gold Q&amp;A
         </button>
       </div>
 
       {/* Footer / Confirm Action */}
-      <div className="pt-4 border-t border-[#232D42] flex items-center justify-between">
-        <div className="text-xs text-slate-400">
-          Status: {spec.confirmed ? 'Confirmed ✓' : 'Awaiting confirmation'}
+      <div className="pt-4 border-t border-[#E8DDD2] flex items-center justify-between">
+        <div className="text-xs text-[#666555]">
+          Status: <strong className="text-[#3D3229]">{spec.confirmed ? 'Confirmed ✓' : 'Awaiting confirmation'}</strong>
         </div>
         <button
           type="button"
           onClick={() => onConfirm(spec)}
           disabled={loading}
-          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20 transition-all disabled:opacity-50"
+          className="btn-primary text-xs"
         >
           {loading ? 'Confirming...' : 'Confirm & Proceed to Forge'}
           <ArrowRight className="w-4 h-4" />

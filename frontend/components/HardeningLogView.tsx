@@ -148,39 +148,39 @@ export default function HardeningLogView({
   return (
     <div className="w-full max-w-5xl mx-auto space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 bg-[#111726] border border-[#232D42] rounded-2xl">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl shadow-card">
+        <div className="flex items-center gap-3.5">
+          <div className="p-2.5 rounded-xl bg-[#F0E6DC] border border-[#E8DDD2] text-[#C75A3B]">
             <Wrench className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white tracking-tight">
-                Stage 2.5: Guardrail Hardening Log
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl font-bold text-[#3D3229] tracking-tight">
+                Stage 5: Guardrail Hardening Log
               </h2>
-              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-[#F0E6DC] text-[#C75A3B] border border-[#E8DDD2]">
                 {agentName}
               </span>
             </div>
-            <p className="text-xs text-slate-400 mt-0.5">
+            <p className="text-xs text-[#666555] mt-1">
               Surgical repairs • Non-wholesale diffs • Targeted re-attack verification
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {onBackToRedTeam && (
             <button
               onClick={onBackToRedTeam}
-              className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              className="btn-secondary text-xs"
             >
-              ← Red Team View
+              ← Red Team Studio
             </button>
           )}
           {onChatWithHardenedAgent && (
             <button
               onClick={onChatWithHardenedAgent}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
+              className="btn-secondary text-xs"
             >
               <span>Test Chat</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -189,7 +189,7 @@ export default function HardeningLogView({
           {onProceedToVerification && (
             <button
               onClick={onProceedToVerification}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 transition"
+              className="btn-primary text-xs"
             >
               <Award className="w-3.5 h-3.5" />
               <span>Verify Scorecard</span>
@@ -200,12 +200,12 @@ export default function HardeningLogView({
 
       {/* Survival Progression Hero Card */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 p-6 bg-[#151C2C] border border-[#232D42] rounded-2xl flex flex-col justify-between">
+        <div className="md:col-span-2 p-6 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between shadow-card">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#666555]">
               Survival Rate Progression
             </span>
-            <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <span className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-[#2ECC71]/15 text-[#2ECC71] border border-[#2ECC71]/30">
               <Sparkles className="w-3.5 h-3.5" />
               +{survivalGain}% Improvement
             </span>
@@ -213,15 +213,15 @@ export default function HardeningLogView({
 
           <div className="flex items-baseline gap-4 my-4">
             <div>
-              <div className="text-xs text-slate-400">Initial Attack Survival</div>
-              <div className="text-3xl font-extrabold text-red-400">
+              <div className="text-xs text-[#666555]">Initial Attack Survival</div>
+              <div className="text-3xl font-extrabold text-[#E74C3C]">
                 {(hardeningLog.initial_survival_rate * 100).toFixed(0)}%
               </div>
             </div>
-            <ArrowRight className="w-6 h-6 text-slate-500 self-center" />
+            <ArrowRight className="w-6 h-6 text-[#9B8B7E] self-center" />
             <div>
-              <div className="text-xs text-slate-400">Hardened Survival</div>
-              <div className="text-4xl font-extrabold text-emerald-400">
+              <div className="text-xs text-[#666555]">Hardened Survival</div>
+              <div className="text-4xl font-extrabold text-[#2ECC71]">
                 {(hardeningLog.final_survival_rate * 100).toFixed(0)}%
               </div>
             </div>
@@ -229,48 +229,48 @@ export default function HardeningLogView({
 
           {/* Progress Visual Bar */}
           <div className="space-y-1.5">
-            <div className="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex">
+            <div className="w-full h-3 bg-[#F0E6DC] rounded-full overflow-hidden flex border border-[#E8DDD2]">
               <div
                 style={{ width: `${hardeningLog.initial_survival_rate * 100}%` }}
-                className="bg-amber-500 h-full"
+                className="bg-[#F39C12] h-full"
               />
               <div
                 style={{ width: `${survivalGain}%` }}
-                className="bg-emerald-500 h-full animate-pulse"
+                className="bg-[#2ECC71] h-full"
               />
             </div>
-            <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+            <div className="flex justify-between text-[11px] text-[#666555] font-mono">
               <span>Passes: {hardeningLog.pass_count}</span>
-              <span>Target: 85% met</span>
+              <span className="text-[#2ECC71] font-semibold">Target: 85% met</span>
             </div>
           </div>
         </div>
 
         {/* Blueprint Revision & Hash Card */}
-        <div className="p-6 bg-[#151C2C] border border-[#232D42] rounded-2xl flex flex-col justify-between space-y-4">
+        <div className="p-6 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl flex flex-col justify-between space-y-4 shadow-card">
           <div>
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              <GitCommit className="w-4 h-4 text-blue-400" />
+            <div className="flex items-center gap-2 text-xs font-semibold text-[#666555] uppercase tracking-wider">
+              <GitCommit className="w-4 h-4 text-[#C75A3B]" />
               <span>Blueprint Lineage</span>
             </div>
-            <div className="mt-2 text-xs font-mono text-slate-300 space-y-1 bg-black/40 p-2.5 rounded-lg border border-slate-800">
-              <div><span className="text-slate-500">v1:</span> {hardeningLog.initial_blueprint_id.slice(0, 16)}...</div>
-              <div><span className="text-emerald-400">v2:</span> {hardeningLog.hardened_blueprint_id.slice(0, 16)}...</div>
+            <div className="mt-2 text-xs font-mono text-[#3D3229] space-y-1 bg-white p-2.5 rounded-lg border border-[#E8DDD2]">
+              <div><span className="text-[#9B8B7E]">v1:</span> {hardeningLog.initial_blueprint_id.slice(0, 16)}...</div>
+              <div><span className="text-[#2ECC71] font-bold">v2:</span> {hardeningLog.hardened_blueprint_id.slice(0, 16)}...</div>
             </div>
           </div>
 
           <div>
-            <div className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+            <div className="text-[11px] uppercase tracking-wider text-[#666555] font-semibold mb-1">
               Tamper-Evident SHA-256
             </div>
-            <div className="flex items-center justify-between bg-black/40 px-3 py-2 rounded-lg border border-slate-800 text-[11px] font-mono text-slate-300">
+            <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-[#E8DDD2] text-[11px] font-mono text-[#3D3229]">
               <span className="truncate">{hardeningLog.log_hash || 'SHA256-PENDING'}</span>
               <button
                 onClick={handleCopyHash}
-                className="text-slate-400 hover:text-white transition ml-2"
+                className="text-[#666555] hover:text-[#C75A3B] transition ml-2"
                 title="Copy Hash"
               >
-                {copiedHash ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {copiedHash ? <Check className="w-3.5 h-3.5 text-[#2ECC71]" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
             </div>
           </div>
@@ -278,14 +278,14 @@ export default function HardeningLogView({
       </div>
 
       {/* Tabs: Visual Diff Cards vs Plain Text Log */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+      <div className="flex items-center justify-between border-b border-[#E8DDD2] pb-2">
         <div className="flex gap-2">
           <button
             onClick={() => setActiveTab('visual')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeTab === 'visual'
-                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-[#C75A3B] text-white shadow-sm'
+                : 'text-[#666555] hover:text-[#3D3229]'
             }`}
           >
             Surgical Patches ({hardeningLog.applied_patches.length})
@@ -294,8 +294,8 @@ export default function HardeningLogView({
             onClick={() => setActiveTab('plain')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
               activeTab === 'plain'
-                ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-[#C75A3B] text-white shadow-sm'
+                : 'text-[#666555] hover:text-[#3D3229]'
             }`}
           >
             Compliance Text Log
@@ -304,9 +304,9 @@ export default function HardeningLogView({
 
         <button
           onClick={handleCopyText}
-          className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
+          className="btn-secondary text-xs"
         >
-          {copiedText ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          {copiedText ? <Check className="w-3.5 h-3.5 text-[#2ECC71]" /> : <Copy className="w-3.5 h-3.5" />}
           <span>{copiedText ? 'Copied Log' : 'Copy Log'}</span>
         </button>
       </div>
@@ -318,39 +318,39 @@ export default function HardeningLogView({
             const isExpanded = !!expandedDiffs[patch.patch_id];
             const targetColor =
               patch.target === 'guardrails'
-                ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
+                ? 'text-[#2ECC71] bg-[#2ECC71]/10 border-[#2ECC71]/30'
                 : patch.target === 'tool_policy'
-                ? 'text-purple-400 bg-purple-500/10 border-purple-500/30'
-                : 'text-blue-400 bg-blue-500/10 border-blue-500/30';
+                ? 'text-[#C75A3B] bg-[#C75A3B]/10 border-[#C75A3B]/30'
+                : 'text-[#D97D5E] bg-[#D97D5E]/10 border-[#D97D5E]/30';
 
             return (
               <div
                 key={patch.patch_id}
-                className="bg-[#151C2C] border border-[#232D42] rounded-xl p-5 space-y-3 transition hover:border-slate-600"
+                className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-5 space-y-3 shadow-card transition hover:border-[#C75A3B]"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2.5">
-                    <span className="font-mono text-xs font-bold text-slate-300 px-2 py-0.5 rounded bg-slate-800 border border-slate-700">
+                    <span className="font-mono text-xs font-bold text-[#3D3229] px-2 py-0.5 rounded bg-white border border-[#E8DDD2]">
                       {patch.patch_id}
                     </span>
                     <span className={`text-[11px] font-semibold uppercase px-2.5 py-0.5 rounded-full border ${targetColor}`}>
                       {patch.target.replace('_', ' ')}
                     </span>
-                    <span className="text-xs text-slate-400 font-medium">
-                      Category: <strong className="text-slate-200">{patch.category}</strong>
+                    <span className="text-xs text-[#666555] font-medium">
+                      Category: <strong className="text-[#3D3229]">{patch.category}</strong>
                     </span>
                   </div>
 
                   {patch.target_name && (
-                    <span className="text-xs text-slate-400 font-mono">
+                    <span className="text-xs text-[#666555] font-mono">
                       Target: {patch.target_name}
                     </span>
                   )}
                 </div>
 
                 {/* Non-engineer explanation rationale */}
-                <div className="text-sm text-slate-200 font-normal leading-relaxed">
-                  <strong className="text-slate-400 text-xs uppercase tracking-wider mr-1">Rationale:</strong>
+                <div className="text-sm text-[#3D3229] font-normal leading-relaxed">
+                  <strong className="text-[#666555] text-xs uppercase tracking-wider mr-1">Rationale:</strong>
                   {patch.rationale}
                 </div>
 
@@ -358,7 +358,7 @@ export default function HardeningLogView({
                 <div className="pt-1">
                   <button
                     onClick={() => toggleDiff(patch.patch_id)}
-                    className="flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 font-medium transition"
+                    className="flex items-center gap-1.5 text-xs text-[#C75A3B] hover:text-[#B84A2F] font-semibold transition"
                   >
                     <FileCode className="w-3.5 h-3.5" />
                     <span>{isExpanded ? 'Hide Unified Diff' : 'View Surgical Diff (+/-)'}</span>
@@ -366,7 +366,7 @@ export default function HardeningLogView({
                   </button>
 
                   {isExpanded && (
-                    <div className="mt-2.5 rounded-lg bg-[#0B0F19] border border-slate-800 p-3 font-mono text-xs overflow-x-auto">
+                    <div className="mt-2.5 rounded-lg bg-white border border-[#E8DDD2] p-3 font-mono text-xs overflow-x-auto shadow-xs">
                       {patch.diff.split('\n').map((line, lIdx) => {
                         const isAdd = line.startsWith('+') && !line.startsWith('+++');
                         const isDel = line.startsWith('-') && !line.startsWith('---');
@@ -376,12 +376,12 @@ export default function HardeningLogView({
                             key={lIdx}
                             className={`${
                               isAdd
-                                ? 'text-emerald-400 bg-emerald-500/10 px-1 py-0.5 rounded'
+                                ? 'text-[#2ECC71] bg-[#2ECC71]/10 px-1 py-0.5 rounded font-semibold'
                                 : isDel
-                                ? 'text-red-400 bg-red-500/10 px-1 py-0.5 rounded'
+                                ? 'text-[#E74C3C] bg-[#E74C3C]/10 px-1 py-0.5 rounded font-semibold'
                                 : isHeader
-                                ? 'text-slate-500 font-semibold'
-                                : 'text-slate-400'
+                                ? 'text-[#9B8B7E] font-semibold'
+                                : 'text-[#666555]'
                             }`}
                           >
                             {line}
@@ -399,16 +399,16 @@ export default function HardeningLogView({
 
       {/* Tab 2: Plain Text Compliance Log */}
       {activeTab === 'plain' && (
-        <div className="bg-[#0B0F19] border border-slate-800 rounded-xl p-5 font-mono text-xs text-slate-300 whitespace-pre-wrap leading-relaxed overflow-x-auto">
+        <div className="bg-white border border-[#E8DDD2] rounded-xl p-5 font-mono text-xs text-[#3D3229] whitespace-pre-wrap leading-relaxed overflow-x-auto shadow-xs">
           {generatePlainTextSummary()}
         </div>
       )}
 
       {/* Multi-Pass Iteration Summary Timeline */}
       {hardeningLog.pass_records && hardeningLog.pass_records.length > 0 && (
-        <div className="p-5 bg-[#151C2C] border border-[#232D42] rounded-xl space-y-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-            <Layers className="w-4 h-4 text-emerald-400" />
+        <div className="p-5 bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl space-y-3 shadow-card">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-[#666555] flex items-center gap-2">
+            <Layers className="w-4 h-4 text-[#2ECC71]" />
             <span>Pass Breakdown Timeline</span>
           </h3>
 
@@ -416,19 +416,19 @@ export default function HardeningLogView({
             {hardeningLog.pass_records.map((rec) => (
               <div
                 key={rec.pass_number}
-                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-black/40 border border-slate-800 text-xs gap-2"
+                className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-white border border-[#E8DDD2] text-xs gap-2 shadow-xs"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="font-bold text-emerald-400">Pass {rec.pass_number}</span>
-                  <span className="text-slate-400">
-                    Targeted: <span className="text-slate-200">{rec.categories_targeted.join(', ')}</span>
+                  <span className="font-bold text-[#2ECC71]">Pass {rec.pass_number}</span>
+                  <span className="text-[#666555]">
+                    Targeted: <span className="text-[#3D3229] font-semibold">{rec.categories_targeted.join(', ')}</span>
                   </span>
                 </div>
-                <div className="flex items-center gap-4 text-slate-300 font-mono">
+                <div className="flex items-center gap-4 text-[#3D3229] font-mono">
                   <span>{rec.sessions_run} re-attack sessions</span>
-                  <span className="text-slate-400">
+                  <span className="text-[#666555]">
                     {(rec.survival_rate_before * 100).toFixed(0)}% →{' '}
-                    <strong className="text-emerald-400">{(rec.survival_rate_after * 100).toFixed(0)}%</strong>
+                    <strong className="text-[#2ECC71]">{(rec.survival_rate_after * 100).toFixed(0)}%</strong>
                   </span>
                 </div>
               </div>
