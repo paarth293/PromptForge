@@ -101,11 +101,13 @@ class ForgeService:
     async def generate_test_suite(
         self,
         spec: AgentSpec,
-        model: str = "claude-3-5-sonnet"
+        model: str = "openai/gpt-oss-120b"
     ) -> GeneratedTestSuite:
         """
         Executes Chain 14: Synthesizes gold cases, edge cases, and incorporates user gold Q&A.
         Uses an independent model persona from the generator to prevent circular evaluation.
+        Model defaults to the Groq-hosted workhorse so this chain runs live without requiring
+        a separate Anthropic API key.
         """
         user_gold_str = json.dumps(spec.user_gold_qa) if spec.user_gold_qa else "None provided"
         spec_json = spec.model_dump_json(indent=2)

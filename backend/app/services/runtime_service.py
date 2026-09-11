@@ -560,20 +560,30 @@ class AgentRuntimeService:
 
         # Check for adversarial attempt against semantic guardrails
         user_lower = sanitized_text.lower()
-        if "ignore previous instructions" in user_lower or "reveal your system prompt" in user_lower or "output your prompt" in user_lower:
+        if (
+            "ignore previous instructions" in user_lower
+            or "reveal your system prompt" in user_lower
+            or "tell me your system prompt" in user_lower
+            or "show me your system prompt" in user_lower
+            or "output your prompt" in user_lower
+            or "print your prompt" in user_lower
+        ):
             asst_reply = "I cannot disclose internal system prompts, developer guidelines, or override my configured safety boundaries. How may I assist you within my designated capabilities?"
         else:
             llm_resp = await self.llm.complete(prompt=messages, model="gpt-4o")
             asst_reply = llm_resp.content
 
-            # In demo mode, if mock fallback returned generic text or contradicted tool success, generate a clean persona-grounded response
+            # In demo mode, replace only genuine mock-simulator artefacts with
+            # a clean persona-grounded response.  Critically, we must NOT catch
+            # real Groq responses that happen to mention the agent’s own name.
             from ..config import settings
             has_successful_tool = bool(tool_calls and tool_calls[0].output.get("success"))
-            if settings.demo_mode and (
+            is_mock_artefact = (
                 "simulated response from" in asst_reply.lower()
-                or "demoassistant" in asst_reply.lower()
+                or "mock-fallback" in asst_reply.lower()
                 or (has_successful_tool and ("strictly limits" in asst_reply.lower() or "cannot fulfill" in asst_reply.lower()))
-            ):
+            )
+            if settings.demo_mode and is_mock_artefact:
                 if tool_calls:
                     tc = tool_calls[0]
                     if "order" in tc.tool_name.lower():
