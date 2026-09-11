@@ -483,41 +483,35 @@ class RedTeamService:
         sample_size = max(1, math.ceil(len(verdicts) * sample_rate))
         sample_indices = rng.sample(range(len(verdicts)), min(sample_size, len(verdicts)))
 
-        agreed_count = 0
-        total_cross_checked = 0
-
-        for idx in sample_indices:
+        async def _cross_check_single(idx: int):
             v = verdicts[idx]
             t = transcript_map.get(v.attack_id or "") or transcript_map.get(v.session_id or "")
             if not t:
-                continue
-
-            # Select a 3rd distinct model (different from attacker and primary judge)
+                return
             third_model = select_judge_model(
                 generator_model=v.attacker_model,
                 exclude_models=[v.judge_model]
             )
-
             second_verdict = await self.judge_attack_transcript(
                 blueprint=blueprint,
                 transcript=t,
                 generator_model=v.attacker_model,
                 custom_judge_model=third_model
             )
-
             agrees = (v.verdict.upper() == second_verdict.verdict.upper())
             v.cross_check_model = third_model
             v.cross_check_verdict = second_verdict.verdict
             v.cross_check_agrees = agrees
-
-            total_cross_checked += 1
-            if agrees:
-                agreed_count += 1
-
             logger.info(
                 f"Cross-check for attack '{v.attack_id}': Primary Judge [{v.judge_model}]={v.verdict} vs "
                 f"Third Judge [{third_model}]={second_verdict.verdict}. Agreement: {agrees}"
             )
+            return agrees
+
+        # Independent per-verdict — fan out
+        results = await asyncio.gather(*[_cross_check_single(idx) for idx in sample_indices])
+        total_cross_checked = sum(1 for r in results if r is not None)
+        agreed_count = sum(1 for r in results if r is True)
 
         agreement_rate = (agreed_count / total_cross_checked) if total_cross_checked > 0 else 1.0
         logger.info(

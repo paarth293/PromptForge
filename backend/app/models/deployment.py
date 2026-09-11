@@ -22,4 +22,5 @@ class DeploymentPackage(BaseModel):
     tools_count: int = 0
     guardrails_count: int = 0
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    share_token: Optional[str] = None
     deployed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

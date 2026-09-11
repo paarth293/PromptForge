@@ -54,21 +54,54 @@ class SlidingWindowRateLimiter:
             self._history.clear()
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, limiter: SlidingWindowRateLimiter, limit: int = 60, window: int = 60):
+    def __init__(
+        self,
+        app,
+        limiter: SlidingWindowRateLimiter = None,
+        limit: int = 60,
+        window: int = 60,
+        exempt_paths: set = None,
+    ):
         super().__init__(app)
-        self.limiter = limiter
+        self.limiter = limiter or SlidingWindowRateLimiter(default_limit=limit, window_seconds=window)
         self.limit = limit
         self.window = window
+        self.exempt_paths: set = exempt_paths or {"/health"}
 
     async def dispatch(self, request: Request, call_next):
-        # Skip health checks
-        if request.url.path == "/health":
+        # Skip exempt paths (health probes, SSE streams) with prefix matching
+        is_exempt = any(
+            request.url.path == p or request.url.path.startswith(p + "/")
+            for p in self.exempt_paths
+        )
+        if is_exempt:
             return await call_next(request)
 
-        # Rate limit by tenant ID or client host
-        tenant_id = request.headers.get("X-Tenant-ID", request.client.host if request.client else "unknown")
+        # Key on authenticated tenant from Bearer token if present, else client IP
+        auth_header = request.headers.get("Authorization", "")
+        rate_key = None
+        if auth_header.startswith("Bearer "):
+            try:
+                from .auth import decode_access_token
+                payload = decode_access_token(auth_header[7:].strip())
+                rate_key = payload.get("tenant_id")
+            except Exception:
+                pass
+
+        if not rate_key:
+            rate_key = request.headers.get("X-Tenant-ID")
+
+        if not rate_key:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                rate_key = forwarded.split(",")[0].strip()
+            elif request.client:
+                rate_key = request.client.host
+            else:
+                rate_key = "unknown"
+
         allowed, remaining, retry_after = await self.limiter.check(
-            tenant_id, limit=self.limit, window=self.window
+            rate_key, limit=self.limit, window=self.window
         )
 
         if not allowed:

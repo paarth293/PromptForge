@@ -1003,6 +1003,52 @@ class LLMClient:
             logger.warning("OpenAI API key missing. Falling back to mock simulation.")
             return await self._call_mock(messages, f"{model}-mock-fallback")
 
+    async def _post_with_retry(
+        self,
+        url: str,
+        headers: Dict[str, str],
+        payload: Dict[str, Any],
+        max_retries: int = 3,
+        timeout: float = 60.0
+    ) -> httpx.Response:
+        import asyncio
+        import random
+
+        from ..core.http_client import get_shared_http_client
+        client = get_shared_http_client()
+
+        last_exc: Optional[Exception] = None
+        for attempt in range(max_retries):
+            try:
+                resp = await client.post(url, headers=headers, json=payload, timeout=timeout)
+                if resp.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
+                    retry_after = resp.headers.get("Retry-After")
+                    delay = float(retry_after) if (retry_after and retry_after.isdigit()) else (0.5 * (2 ** attempt)) + random.uniform(0, 0.2)
+                    logger.warning(f"HTTP {resp.status_code} from {url}, retrying in {delay:.2f}s (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                    continue
+                resp.raise_for_status()
+                return resp
+            except (httpx.ConnectError, httpx.TimeoutException) as exc:
+                last_exc = exc
+                if attempt < max_retries - 1:
+                    delay = (0.5 * (2 ** attempt)) + random.uniform(0, 0.2)
+                    logger.warning(f"Network error from {url}: {exc}, retrying in {delay:.2f}s (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                else:
+                    raise
+            except httpx.HTTPStatusError:
+                raise
+
+        if last_exc:
+            raise last_exc
+        raise RuntimeError(f"Failed to post to {url} after {max_retries} attempts")
+
+    async def _call_openai(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
+        if not self.openai_key:
+            logger.warning("OpenAI API key missing. Falling back to mock simulation.")
+            return await self._call_mock(messages, f"{model}-mock-fallback")
+
         headers = {
             "Authorization": f"Bearer {self.openai_key}",
             "Content-Type": "application/json"
@@ -1013,17 +1059,15 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens
         }
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            return LLMResponse(
-                content=data["choices"][0]["message"]["content"],
-                model=model,
-                provider="openai",
-                usage=data.get("usage", {}),
-                raw_response=data
-            )
+        resp = await self._post_with_retry("https://api.openai.com/v1/chat/completions", headers=headers, payload=payload)
+        data = resp.json()
+        return LLMResponse(
+            content=data["choices"][0]["message"]["content"],
+            model=model,
+            provider="openai",
+            usage=data.get("usage", {}),
+            raw_response=data
+        )
 
     async def _call_anthropic(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
         if not self.anthropic_key:
@@ -1047,17 +1091,15 @@ class LLMClient:
         if system_msg:
             payload["system"] = system_msg
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            return LLMResponse(
-                content=data["content"][0]["text"],
-                model=model,
-                provider="anthropic",
-                usage=data.get("usage", {}),
-                raw_response=data
-            )
+        resp = await self._post_with_retry("https://api.anthropic.com/v1/messages", headers=headers, payload=payload)
+        data = resp.json()
+        return LLMResponse(
+            content=data["content"][0]["text"],
+            model=model,
+            provider="anthropic",
+            usage=data.get("usage", {}),
+            raw_response=data
+        )
 
     async def _call_gemini(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
         if not self.gemini_key:
@@ -1082,18 +1124,16 @@ class LLMClient:
                 "maxOutputTokens": max_tokens
             }
         }
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(url, json=payload)
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"]
-            return LLMResponse(
-                content=text,
-                model=model,
-                provider="gemini",
-                usage=data.get("usageMetadata", {}),
-                raw_response=data
-            )
+        resp = await self._post_with_retry(url, headers={"Content-Type": "application/json"}, payload=payload)
+        data = resp.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        return LLMResponse(
+            content=text,
+            model=model,
+            provider="gemini",
+            usage=data.get("usageMetadata", {}),
+            raw_response=data
+        )
 
     async def _call_ollama(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
         url = f"{self.ollama_url.rstrip('/')}/api/chat"
@@ -1107,16 +1147,14 @@ class LLMClient:
             "stream": False
         }
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                resp = await client.post(url, json=payload)
-                resp.raise_for_status()
-                data = resp.json()
-                return LLMResponse(
-                    content=data["message"]["content"],
-                    model=model,
-                    provider="ollama",
-                    raw_response=data
-                )
+            resp = await self._post_with_retry(url, headers={"Content-Type": "application/json"}, payload=payload, timeout=30.0)
+            data = resp.json()
+            return LLMResponse(
+                content=data["message"]["content"],
+                model=model,
+                provider="ollama",
+                raw_response=data
+            )
         except Exception as e:
             logger.warning(f"Ollama connection failed ({e}). Falling back to mock simulation.")
             return await self._call_mock(messages, f"{model}-mock-fallback")

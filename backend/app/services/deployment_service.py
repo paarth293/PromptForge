@@ -52,6 +52,7 @@ class DeploymentService:
         frontend_prefix = base_frontend_url.rstrip("/") if base_frontend_url else ""
         api_prefix = base_api_url.rstrip("/") if base_api_url else ""
 
+        share_token = f"sht_{uuid.uuid4().hex}"
         shareable_url = f"{frontend_prefix}/agents/{blueprint_id}"
         chat_api_url = f"{api_prefix}/api/deploy/agents/{blueprint_id}/chat"
         verification_url = f"{api_prefix}/api/verify/certificate/{cert.certificate_id}"
@@ -78,6 +79,7 @@ class DeploymentService:
                 "composite_score": cert.composite_score,
                 "survival_rate": cert.survival_rate,
             },
+            share_token=share_token,
             deployed_at=datetime.now(timezone.utc),
         )
 

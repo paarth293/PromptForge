@@ -315,6 +315,7 @@ class DossierService:
         # Build Dossier
         dossier = AgentDossier(
             dossier_id=f"DOSSIER-{uuid.uuid4().hex[:8].upper()}",
+            tenant_id=blueprint.tenant_id,
             agent_id=effective_agent_id,
             blueprint_id=blueprint.blueprint_id,
             spec_id=blueprint.spec_id,

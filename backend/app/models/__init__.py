@@ -20,6 +20,7 @@ from .blueprint import (
     ProvenanceRegistryEntry,
     ToolSchema,
 )
+from .blueprint_summary import BlueprintSummary
 from .certificate import BirthCertificate, CertificateVerificationResult
 from .deployment import DeploymentPackage
 from .dossier import (
@@ -89,6 +90,7 @@ __all__ = [
     "AgentSpec",
     "Capability",
     "AgentBlueprint",
+    "BlueprintSummary",
     "ProvenanceRegistryEntry",
     "ToolSchema",
     "Guardrail",

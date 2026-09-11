@@ -174,7 +174,7 @@ export default function DossierView({
 
   const fetchAvailableAgents = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/blueprints`, {
+      const res = await fetch(`${API_BASE_URL}/api/blueprints/summary`, {
         headers: { 'X-Tenant-ID': tenantId },
       });
       if (res.ok) {

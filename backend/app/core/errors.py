@@ -66,7 +66,10 @@ async def generic_exception_handler(request: Request, exc: Exception):
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=APIErrorResponse(
             success=False,
-            error=ErrorDetail(code="UNHANDLED_EXCEPTION", message=str(exc)),
+            error=ErrorDetail(
+                code="INTERNAL_SERVER_ERROR",
+                message="An unexpected error occurred. Please contact support quoting the request_id."
+            ),
             request_id=req_id
         ).model_dump()
     )

@@ -25,11 +25,23 @@ class Settings(BaseSettings):
 
     # DB & Tenancy
     database_url: str = Field(default="sqlite+aiosqlite:///./promptforge.db", alias="DATABASE_URL")
-    tenant_default_id: str = Field(default="tenant-demo-001", alias="TENANT_DEFAULT_ID")
+    tenant_default_id: str = Field(default="tenant-demo", alias="TENANT_DEFAULT_ID")
     jwt_secret: str = Field(default="dev-insecure-secret-promptforge-key", alias="JWT_SECRET")
+    demo_mode: bool = Field(default=True, alias="DEMO_MODE")
 
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
+    def validate_production_security(self) -> None:
+        """Enforces security gates in production mode."""
+        if self.promptforge_env == "production":
+            if not self.jwt_secret or self.jwt_secret == "dev-insecure-secret-promptforge-key":
+                raise ValueError(
+                    "CRITICAL SECURITY CONFIGURATION ERROR: "
+                    "Cannot run in production with default or empty JWT_SECRET. "
+                    "Please configure a strong, unique secret via JWT_SECRET environment variable."
+                )
+
 settings = Settings()
+settings.validate_production_security()

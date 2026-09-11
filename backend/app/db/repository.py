@@ -1,5 +1,7 @@
+import json
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import aiosqlite
 
@@ -12,6 +14,7 @@ from ..models import (
     ArenaRunResult,
     AuditEvent,
     BirthCertificate,
+    BlueprintSummary,
     DeploymentPackage,
     EvolveLineageLog,
     HardeningLog,
@@ -33,8 +36,14 @@ class PipelineRepository:
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
 
-    def _connect(self):
-        return aiosqlite.connect(self.db_path)
+    @asynccontextmanager
+    async def _connect(self):
+        async with aiosqlite.connect(self.db_path) as conn:
+            conn.row_factory = aiosqlite.Row
+            await conn.execute("PRAGMA foreign_keys = ON;")
+            await conn.execute("PRAGMA busy_timeout = 5000;")
+            await conn.execute("PRAGMA synchronous = NORMAL;")
+            yield conn
 
     # Spec
     async def save_spec(self, spec: AgentSpec):
@@ -72,6 +81,12 @@ class PipelineRepository:
                 (blueprint.blueprint_id, blueprint.spec_id, blueprint.tenant_id, blueprint.version, blueprint.agent_name, blueprint.blueprint_hash, blueprint.model_dump_json(), blueprint.created_at.isoformat())
             )
             await conn.commit()
+
+        try:
+            from ..services.runtime_service import AgentRuntimeService
+            await AgentRuntimeService.invalidate_blueprint_cache(self.db_path, blueprint.blueprint_id)
+        except Exception:
+            pass
 
     async def get_blueprint(self, blueprint_id: str) -> Optional[AgentBlueprint]:
         async with self._connect() as conn:
@@ -115,6 +130,28 @@ class PipelineRepository:
             if row:
                 return AgentBlueprint.model_validate_json(row[0])
             return None
+
+    async def list_blueprints_summary(self, tenant_id: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[BlueprintSummary]:
+        """Return a paginated list of blueprint summaries.
+        Selects only blueprint_id, agent_name, version, created_at.
+        """
+        async with self._connect() as conn:
+            conn.row_factory = aiosqlite.Row
+            base_query = "SELECT blueprint_id, agent_name, version, created_at FROM blueprints"
+            params: List = []
+            if tenant_id:
+                base_query += " WHERE tenant_id = ?"
+                params.append(tenant_id)
+            base_query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            cursor = await conn.execute(base_query, tuple(params))
+            rows = await cursor.fetchall()
+            return [BlueprintSummary(
+                blueprint_id=row["blueprint_id"],
+                agent_name=row["agent_name"],
+                version=row["version"],
+                created_at=datetime.fromisoformat(row["created_at"]) if isinstance(row["created_at"], str) else row["created_at"]
+            ) for row in rows]
 
     # RedTeamReport
     async def save_redteam_report(self, report: RedTeamReport):
@@ -233,6 +270,12 @@ class PipelineRepository:
                 (policy.policy_id, policy.spec_id, policy.model_dump_json(), policy.created_at.isoformat())
             )
             await conn.commit()
+
+        try:
+            from ..services.runtime_service import AgentRuntimeService
+            await AgentRuntimeService.invalidate_policy_cache(self.db_path, policy.spec_id)
+        except Exception:
+            pass
 
     async def get_policy(self, policy_id: str) -> Optional[PolicyObject]:
         async with self._connect() as conn:
@@ -381,7 +424,10 @@ class PipelineRepository:
     async def get_dossier(self, agent_id: str) -> Optional[AgentDossier]:
         async with self._connect() as conn:
             conn.row_factory = aiosqlite.Row
-            cursor = await conn.execute("SELECT data_json FROM dossiers WHERE agent_id = ?;", (agent_id,))
+            cursor = await conn.execute(
+                "SELECT data_json FROM dossiers WHERE agent_id = ? ORDER BY created_at DESC LIMIT 1;",
+                (agent_id,)
+            )
             row = await cursor.fetchone()
             if row:
                 return AgentDossier.model_validate_json(row[0])
@@ -492,6 +538,62 @@ class PipelineRepository:
                 cursor = await conn.execute("SELECT data_json FROM deployments ORDER BY deployed_at DESC;")
             rows = await cursor.fetchall()
             return [DeploymentPackage.model_validate_json(row[0]) for row in rows]
+
+    async def get_deployment_by_share_token(self, share_token: str) -> Optional[DeploymentPackage]:
+        async with self._connect() as conn:
+            cursor = await conn.execute(
+                "SELECT data_json FROM deployments WHERE share_token = ? ORDER BY deployed_at DESC LIMIT 1;",
+                (share_token,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                return DeploymentPackage.model_validate_json(row[0])
+            # Fallback scan data_json in case migration is running
+            cursor = await conn.execute("SELECT data_json FROM deployments ORDER BY deployed_at DESC;")
+            rows = await cursor.fetchall()
+            for r in rows:
+                pkg = DeploymentPackage.model_validate_json(r[0])
+                if getattr(pkg, "share_token", None) == share_token:
+                    return pkg
+            return None
+
+    # API Keys
+    async def save_api_key(
+        self,
+        key_id: str,
+        key_hash: str,
+        tenant_id: str,
+        scopes: Optional[List[str]] = None,
+        revoked_at: Optional[datetime] = None,
+    ):
+        async with self._connect() as conn:
+            scopes_json = json.dumps(scopes or ["*"])
+            await conn.execute(
+                """
+                INSERT OR REPLACE INTO api_keys (key_id, key_hash, tenant_id, scopes, created_at, revoked_at)
+                VALUES (?, ?, ?, ?, ?, ?);
+                """,
+                (key_id, key_hash, tenant_id, scopes_json, datetime.now(timezone.utc).isoformat(), revoked_at.isoformat() if revoked_at else None)
+            )
+            await conn.commit()
+
+    async def get_api_key_by_hash(self, key_hash: str) -> Optional[Dict[str, Any]]:
+        async with self._connect() as conn:
+            cursor = await conn.execute(
+                "SELECT key_id, key_hash, tenant_id, scopes, created_at, revoked_at FROM api_keys WHERE key_hash = ? LIMIT 1;",
+                (key_hash,)
+            )
+            row = await cursor.fetchone()
+            if row:
+                return {
+                    "key_id": row["key_id"],
+                    "key_hash": row["key_hash"],
+                    "tenant_id": row["tenant_id"],
+                    "scopes": json.loads(row["scopes"]) if row["scopes"] else ["*"],
+                    "created_at": row["created_at"],
+                    "revoked_at": row["revoked_at"],
+                }
+            return None
 
     # MonitorSchedule
     async def save_monitor_schedule(self, schedule: MonitorSchedule):

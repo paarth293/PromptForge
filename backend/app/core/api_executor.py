@@ -145,38 +145,52 @@ class ApiExecutor:
         }
 
         try:
-            async with httpx.AsyncClient(
-                transport=self.transport,
-                timeout=request.timeout_seconds or self.default_timeout,
-                follow_redirects=True,
-            ) as client:
+            if self.transport:
+                async with httpx.AsyncClient(
+                    transport=self.transport,
+                    timeout=request.timeout_seconds or self.default_timeout,
+                    follow_redirects=True,
+                ) as client:
+                    response = await client.request(
+                        method=method,
+                        url=validated_url,
+                        headers=headers,
+                        params=request.params,
+                        json=request.json_body,
+                    )
+            else:
+                from .http_client import get_shared_http_client
+
+                client = get_shared_http_client()
                 response = await client.request(
                     method=method,
                     url=validated_url,
                     headers=headers,
                     params=request.params,
                     json=request.json_body,
+                    timeout=request.timeout_seconds or self.default_timeout,
                 )
-                elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
-                try:
-                    res_data = response.json()
-                except Exception:
-                    res_data = {"raw_text": response.text}
+            elapsed_ms = (time.perf_counter() - start_time) * 1000.0
 
-                is_success = 200 <= response.status_code < 300
-                err_msg = None if is_success else f"HTTP {response.status_code}: {response.text[:200]}"
+            try:
+                res_data = response.json()
+            except Exception:
+                res_data = {"raw_text": response.text}
 
-                return ApiExecutionResult(
-                    success=is_success,
-                    status_code=response.status_code,
-                    response_data=res_data,
-                    error=err_msg,
-                    execution_duration_ms=round(elapsed_ms, 2),
-                    url=validated_url,
-                    method=method,
-                    headers=dict(response.headers),
-                )
+            is_success = 200 <= response.status_code < 300
+            err_msg = None if is_success else f"HTTP {response.status_code}: {response.text[:200]}"
+
+            return ApiExecutionResult(
+                success=is_success,
+                status_code=response.status_code,
+                response_data=res_data,
+                error=err_msg,
+                execution_duration_ms=round(elapsed_ms, 2),
+                url=validated_url,
+                method=method,
+                headers=dict(response.headers),
+            )
         except httpx.TimeoutException:
             elapsed_ms = (time.perf_counter() - start_time) * 1000.0
             return ApiExecutionResult(

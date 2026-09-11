@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import re
+import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -16,12 +18,81 @@ from ..models.shield import PolicyObject
 logger = logging.getLogger("promptforge.services.runtime")
 
 
+class _TTLCacheEntry:
+    def __init__(self, value: Any, ttl_seconds: int):
+        self.value = value
+        self.expiry = time.time() + ttl_seconds
+
+    def is_valid(self) -> bool:
+        return time.time() < self.expiry
+
+
+class _InMemoryTTLCache:
+    def __init__(self, default_ttl: int = 300):
+        self.store: dict[str, _TTLCacheEntry] = {}
+        self.default_ttl = default_ttl
+        self.lock = asyncio.Lock()
+
+    async def get(self, key: str) -> Any:
+        async with self.lock:
+            entry = self.store.get(key)
+            if entry and entry.is_valid():
+                return entry.value
+            elif entry:
+                del self.store[key]
+            return None
+
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None):
+        async with self.lock:
+            self.store[key] = _TTLCacheEntry(value, ttl or self.default_ttl)
+
+    async def clear(self):
+        async with self.lock:
+            self.store.clear()
+
+
 class AgentRuntimeService:
     """
     Executes an interactive chat conversation against a forged AgentBlueprint.
     Enforces deterministic middleware guardrails, performs simulated tool execution,
     and returns compliant assistant responses.
     """
+
+    _blueprint_cache = _InMemoryTTLCache(default_ttl=300)
+    _policy_cache = _InMemoryTTLCache(default_ttl=300)
+
+    @classmethod
+    async def invalidate_blueprint_cache(cls, db_path: Optional[str] = None, blueprint_id: Optional[str] = None):
+        async with cls._blueprint_cache.lock:
+            if blueprint_id and db_path:
+                cls._blueprint_cache.store.pop(f"{db_path}:{blueprint_id}", None)
+            elif blueprint_id:
+                keys = [k for k in cls._blueprint_cache.store if k.endswith(f":{blueprint_id}")]
+                for k in keys:
+                    cls._blueprint_cache.store.pop(k, None)
+            elif db_path:
+                keys = [k for k in cls._blueprint_cache.store if k.startswith(f"{db_path}:")]
+                for k in keys:
+                    cls._blueprint_cache.store.pop(k, None)
+            else:
+                cls._blueprint_cache.store.clear()
+
+    @classmethod
+    async def invalidate_policy_cache(cls, db_path: Optional[str] = None, spec_id: Optional[str] = None):
+        async with cls._policy_cache.lock:
+            if spec_id and db_path:
+                cls._policy_cache.store.pop(f"{db_path}:{spec_id}", None)
+            elif spec_id:
+                keys = [k for k in cls._policy_cache.store if k.endswith(f":{spec_id}")]
+                for k in keys:
+                    cls._policy_cache.store.pop(k, None)
+            elif db_path:
+                keys = [k for k in cls._policy_cache.store if k.startswith(f"{db_path}:")]
+                for k in keys:
+                    cls._policy_cache.store.pop(k, None)
+            else:
+                cls._policy_cache.store.clear()
+
 
     def __init__(
         self,
@@ -342,7 +413,6 @@ class AgentRuntimeService:
                 return tool
 
         return None
-
     async def chat(
         self,
         blueprint_id: str,
@@ -360,9 +430,15 @@ class AgentRuntimeService:
         When middleware is disabled, the deterministic gates are bypassed, proving
         that security enforcement is architectural rather than merely prompt-advisory.
         """
-        blueprint = await self.repo.get_blueprint(blueprint_id)
+        # Try cache first for blueprint
+        db_path = getattr(self.repo, "db_path", "default")
+        bp_cache_key = f"{db_path}:{blueprint_id}"
+        blueprint = await self._blueprint_cache.get(bp_cache_key)
         if not blueprint:
-            raise ValueError(f"Blueprint with ID '{blueprint_id}' not found.")
+            blueprint = await self.repo.get_blueprint(blueprint_id)
+            if not blueprint:
+                raise ValueError(f"Blueprint with ID '{blueprint_id}' not found.")
+            await self._blueprint_cache.set(bp_cache_key, blueprint)
 
         # Determine middleware activation: request-level override takes precedence
         mw_active = (
@@ -376,12 +452,27 @@ class AgentRuntimeService:
 
         # Gate A: Tenant Isolation / Auth Middleware
         effective_tenant = tenant_id or request.tenant_id
-        if mw_active and effective_tenant:
+        if mw_active:
+            from ..config import settings
             from ..core.tenancy import verify_tenant_access
-            verify_tenant_access(blueprint.tenant_id, effective_tenant)
+            if not effective_tenant and settings.promptforge_env == "production":
+                from fastapi import HTTPException
+                raise HTTPException(
+                    status_code=401,
+                    detail="Authentication required: No tenant context provided.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            if effective_tenant:
+                verify_tenant_access(blueprint.tenant_id, effective_tenant)
 
-        # Retrieve policy if available for this agent
-        policy = await self.repo.get_policy_by_spec(blueprint.spec_id)
+        # Retrieve policy if available for this agent (cached)
+        policy_cache_key = f"{db_path}:{blueprint.spec_id}"
+        policy = await self._policy_cache.get(policy_cache_key)
+        if not policy:
+            policy = await self.repo.get_policy_by_spec(blueprint.spec_id)
+            if policy:
+                await self._policy_cache.set(policy_cache_key, policy)
+
 
         # Gate B: Deterministic Rate Limit Middleware
         if mw_active and policy:
@@ -454,7 +545,9 @@ class AgentRuntimeService:
         messages: List[LLMMessage] = [
             LLMMessage(role="system", content=blueprint.system_prompt)
         ]
-        for past in request.history:
+        # Sliding window: truncate conversation history to most recent 10 messages
+        history_window = request.history[-10:] if request.history else []
+        for past in history_window:
             messages.append(LLMMessage(role=past.role, content=past.content))
 
         delimited_user = delimit_user_chat_input(sanitized_text)
@@ -473,8 +566,9 @@ class AgentRuntimeService:
             llm_resp = await self.llm.complete(prompt=messages, model="gpt-4o")
             asst_reply = llm_resp.content
 
-            # If mock fallback returned generic text, generate a clean persona-grounded response
-            if "simulated response from" in asst_reply.lower() or "demoassistant" in asst_reply.lower():
+            # In demo mode, if mock fallback returned generic text, generate a clean persona-grounded response
+            from ..config import settings
+            if settings.demo_mode and ("simulated response from" in asst_reply.lower() or "demoassistant" in asst_reply.lower()):
                 if tool_calls:
                     tc = tool_calls[0]
                     if "order" in tc.tool_name.lower():

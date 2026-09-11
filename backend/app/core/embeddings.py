@@ -47,16 +47,20 @@ def compute_local_embedding(text: str, dimension: int = 128) -> List[float]:
         return [0.0] * dimension
     return [x / norm for x in vector]
 
+def dot_product(v1: List[float], v2: List[float]) -> float:
+    """Assumes both vectors are L2‑normalized and returns their dot product.
+    This is equivalent to cosine similarity for normalized vectors.
+    """
+    return sum(a * b for a, b in zip(v1, v2))
+
 def cosine_similarity(v1: List[float], v2: List[float]) -> float:
-    """Computes cosine similarity between two vectors."""
-    if len(v1) != len(v2) or not v1 or not v2:
+    """Compatibility wrapper – computes dot product assuming inputs are normalized.
+    Returns a value clamped to [-1, 1] for safety.
+    """
+    if len(v1) != len(v2) or not v1:
         return 0.0
-    dot_product = sum(a * b for a, b in zip(v1, v2))
-    norm_a = math.sqrt(sum(a * a for a in v1))
-    norm_b = math.sqrt(sum(b * b for b in v2))
-    if norm_a == 0.0 or norm_b == 0.0:
-        return 0.0
-    return max(-1.0, min(1.0, dot_product / (norm_a * norm_b)))
+    sim = dot_product(v1, v2)
+    return max(-1.0, min(1.0, sim))
 
 class VectorIndex:
     """

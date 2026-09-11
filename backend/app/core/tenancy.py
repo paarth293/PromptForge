@@ -1,20 +1,5 @@
-from typing import Optional
+from fastapi import HTTPException
 
-from fastapi import Header, HTTPException
-
-from ..config import settings
-
-
-def get_current_tenant_id(
-    x_tenant_id: Optional[str] = Header(None, alias="X-Tenant-ID")
-) -> str:
-    """
-    Extracts tenant ID from header or falls back to default tenant.
-    Guarantees that every request is strictly scoped to a tenant context.
-    """
-    if x_tenant_id and x_tenant_id.strip():
-        return x_tenant_id.strip()
-    return settings.tenant_default_id
 
 def verify_tenant_access(resource_tenant_id: str, current_tenant_id: str, resource_name: str = "Resource"):
     """

@@ -49,6 +49,13 @@ async def test_pipeline_repository_blueprint_crud():
         listed_bps = await repo.list_blueprints(tenant_id="tenant-123")
         assert len(listed_bps) == 1
         assert listed_bps[0].blueprint_id == blueprint.blueprint_id
+
+        # 5. List Blueprints Summary
+        summaries = await repo.list_blueprints_summary(tenant_id="tenant-123")
+        assert len(summaries) == 1
+        assert summaries[0].blueprint_id == blueprint.blueprint_id
+        assert summaries[0].agent_name == "RefundHero"
+        assert summaries[0].version == 1
     finally:
         if os.path.exists(TEST_DB):
             os.remove(TEST_DB)

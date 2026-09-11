@@ -31,14 +31,14 @@ import {
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
-import RedTeamFeed from '../components/RedTeamFeed';
-import HardeningLogView, { HardeningLogData } from '../components/HardeningLogView';
-import VerificationScorecardView, { VerificationScorecardData } from '../components/VerificationScorecardView';
-import AuditModeEntry from '../components/AuditModeEntry';
-import DeepForgeLineageViewer from '../components/DeepForgeLineageViewer';
-import ArenaView from '../components/ArenaView';
-import DossierView from '../components/DossierView';
-import MonitorDashboardView from '../components/MonitorDashboardView';
+import dynamic from 'next/dynamic';
+const RedTeamFeed = dynamic(() => import('../components/RedTeamFeed'), { ssr: false });
+const HardeningLogView = dynamic(() => import('../components/HardeningLogView'), { ssr: false });
+const VerificationScorecardView = dynamic(() => import('../components/VerificationScorecardView'), { ssr: false });
+const DeepForgeLineageViewer = dynamic(() => import('../components/DeepForgeLineageViewer'), { ssr: false });
+const ArenaView = dynamic(() => import('../components/ArenaView'), { ssr: false });
+const DossierView = dynamic(() => import('../components/DossierView'), { ssr: false });
+const MonitorDashboardView = dynamic(() => import('../components/MonitorDashboardView'), { ssr: false });
 import UnifiedNavigationShell, { ForgeStage, SurfaceMode } from '../components/UnifiedNavigationShell';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
