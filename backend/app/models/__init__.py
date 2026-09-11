@@ -1,11 +1,15 @@
 """PromptForge Core Pipeline Models"""
 from .arena import (
     HOSTILE_PERSONA_DEFINITIONS,
+    ArenaComparisonRequest,
+    ArenaComparisonResult,
     ArenaPairingRequest,
     ArenaPairingTranscript,
+    ArenaResult,
     ArenaRunResult,
     ArenaTurn,
     HostilePersonaType,
+    ModelComparisonResult,
     SeamAttackPayload,
     SeamAuditLogEntry,
     SeamDetectionResult,
@@ -166,5 +170,9 @@ __all__ = [
     "ArenaPairingTranscript",
     "ArenaRunResult",
     "ArenaPairingRequest",
+    "ArenaComparisonRequest",
+    "ArenaComparisonResult",
+    "ArenaResult",
+    "ModelComparisonResult",
 ]
 

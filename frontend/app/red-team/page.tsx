@@ -5,6 +5,7 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { Flame, ArrowLeft, ArrowRight, ShieldCheck, Sparkles, RefreshCw } from 'lucide-react';
 import MainNav from '../../components/MainNav';
+import ExportButton from '../../components/ExportButton';
 import { API_BASE_URL, apiFetch } from '../../lib/api';
 
 const RedTeamFeed = dynamic(() => import('../../components/RedTeamFeed'), { ssr: false });
@@ -88,25 +89,32 @@ export default function RedTeamPage() {
             </div>
           </div>
 
-          {recentBlueprints.length > 1 && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-[#666555] font-medium">Switch Target:</label>
-              <select
-                value={activeBlueprint.blueprint_id}
-                onChange={(e) => {
-                  const found = recentBlueprints.find(b => b.blueprint_id === e.target.value);
-                  if (found) setActiveBlueprint(found);
-                }}
-                className="text-xs bg-white border border-[#E8DDD2] rounded-lg px-2.5 py-1.5 text-[#3D3229] focus:outline-none focus:border-[#C75A3B]"
-              >
-                {recentBlueprints.map(bp => (
-                  <option key={bp.blueprint_id} value={bp.blueprint_id}>
-                    {bp.agent_name} ({bp.blueprint_id.slice(0, 8)})
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {recentBlueprints.length > 1 && (
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-[#666555] font-medium">Switch Target:</label>
+                <select
+                  value={activeBlueprint.blueprint_id}
+                  onChange={(e) => {
+                    const found = recentBlueprints.find(b => b.blueprint_id === e.target.value);
+                    if (found) setActiveBlueprint(found);
+                  }}
+                  className="text-xs bg-white border border-[#E8DDD2] rounded-lg px-2.5 py-1.5 text-[#3D3229] focus:outline-none focus:border-[#C75A3B]"
+                >
+                  {recentBlueprints.map(bp => (
+                    <option key={bp.blueprint_id} value={bp.blueprint_id}>
+                      {bp.agent_name} ({bp.blueprint_id.slice(0, 8)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <ExportButton
+              campaignId={activeBlueprint.blueprint_id}
+              label="Export PDF Report"
+              size="sm"
+            />
+          </div>
         </div>
 
         {/* Live Attack Feed */}

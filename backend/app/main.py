@@ -4,7 +4,17 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Path,
+    Query,
+    Request,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -27,6 +37,8 @@ from .models import (
     AgentBlueprint,
     AgentDossier,
     AgentSpec,
+    ArenaComparisonRequest,
+    ArenaComparisonResult,
     ArenaPairingRequest,
     ArenaPairingTranscript,
     ArenaRunResult,
@@ -78,6 +90,7 @@ from .services.evolve_service import EvolveService
 from .services.forge_service import ForgeService
 from .services.harden_service import HardenService
 from .services.monitor_service import MonitorService
+from .services.pdf_export_service import PDFExportService
 from .services.redteam_service import RedTeamService
 from .services.runtime_service import AgentRuntimeService
 from .services.shield_service import ShieldService
@@ -1438,6 +1451,94 @@ async def test_seam_handoff_endpoint(
         boundary_mode=req.boundary_mode,  # type: ignore
     )
     return result
+
+
+@app.post("/api/arena/compare", response_model=ArenaComparisonResult)
+async def compare_arena_models_endpoint(
+    req: ArenaComparisonRequest,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    """
+    Week 2: Model Arena Feature
+    Compare how multiple LLMs respond to an adversarial prompt side-by-side.
+    """
+    repo = PipelineRepository()
+    arena_service = ArenaService(repo=repo)
+    return await arena_service.compare_models(req=req, tenant_id=tenant_id)
+
+
+@app.get("/api/arena/history/{tenant_id}", response_model=List[ArenaComparisonResult])
+async def get_arena_history_endpoint(
+    tenant_id: str = Path(...),
+    limit: int = 10,
+    current_tenant: str = Header(default="tenant-default", alias="X-Tenant-ID"),
+):
+    """Get previous model comparison results for tenant."""
+    repo = PipelineRepository()
+    arena_service = ArenaService(repo=repo)
+    effective_tenant = tenant_id or current_tenant
+    return arena_service.get_comparison_history(tenant_id=effective_tenant, limit=limit)
+
+
+# =========================================================================
+# Phase 11.5: EXPORT Endpoints (PDF & Executive Reports)
+# =========================================================================
+
+@app.get("/api/export/campaign/{campaign_id}/pdf")
+async def export_campaign_pdf_endpoint(
+    campaign_id: str,
+    tenant_id: str = Depends(get_current_tenant_id),
+):
+    """
+    Week 2: PDF Export Feature
+    Generates and downloads an executive security audit report in PDF format.
+    """
+    repo = PipelineRepository()
+    campaign_data = None
+
+    if campaign_id in DEMO_AUDIT_RUNS:
+        campaign_data = dict(DEMO_AUDIT_RUNS[campaign_id])
+    else:
+        rt_report = await repo.get_redteam_report(campaign_id)
+        if not rt_report:
+            rt_report = await repo.get_latest_redteam_report_by_blueprint(campaign_id)
+        if rt_report:
+            bp = await repo.get_blueprint(rt_report.blueprint_id)
+            agent_name = bp.agent_name if bp else "Evaluated Agent"
+            findings = []
+            for v in rt_report.attack_verdicts:
+                if v.verdict in ("COMPROMISED", "DEGRADED"):
+                    findings.append({
+                        "id": v.id[:8],
+                        "severity": "CRITICAL" if v.verdict == "COMPROMISED" else "HIGH",
+                        "category": v.category,
+                        "description": v.verdict_rationale or "Adversarial probe breached boundary constraints.",
+                        "probe": v.prompt[:120],
+                        "mitigation": "Strengthen input filtering delimiters and add parameter boundary clamping.",
+                    })
+            survival = rt_report.survival_rate * 100 if rt_report.survival_rate <= 1.0 else rt_report.survival_rate
+            campaign_data = {
+                "agent_name": agent_name,
+                "survival_rate": round(survival, 1),
+                "total_probes": rt_report.total_attacks,
+                "blocked": rt_report.blocked_count,
+                "vulnerabilities": findings,
+                "cost_usd": 0.285,
+            }
+
+    pdf_buffer = PDFExportService.generate_campaign_pdf(
+        campaign_id=campaign_id,
+        campaign_data=campaign_data,
+    )
+    safe_name = f"campaign-{campaign_id[:12]}.pdf"
+    return StreamingResponse(
+        pdf_buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={safe_name}",
+            "Cache-Control": "no-cache",
+        },
+    )
 
 
 # =========================================================================

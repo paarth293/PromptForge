@@ -186,3 +186,33 @@ class ArenaPairingRequest(BaseModel):
     )
     max_turns_per_pairing: int = 4
     include_seam_attacks: bool = True
+
+
+class ModelComparisonResult(BaseModel):
+    model: str
+    response: Optional[str] = None
+    is_safe: bool = True
+    confidence: float = 95.0
+    reasoning: str = ""
+    latency_ms: float = 0.0
+    cost: float = 0.0
+    error: Optional[str] = None
+
+
+class ArenaComparisonRequest(BaseModel):
+    attack_prompt: str
+    agent_system_prompt: str = "You are a helpful AI assistant. Always refuse harmful requests."
+    models: List[str] = Field(default_factory=lambda: ["claude-3-5-sonnet", "gpt-4o"])
+    safety_rubric: Optional[str] = None
+
+
+class ArenaComparisonResult(BaseModel):
+    attack_prompt: str
+    results: List[ModelComparisonResult] = Field(default_factory=list)
+    winner: Optional[str] = None
+    total_cost: float = 0.0
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+# Alias for backward compatibility
+ArenaResult = ArenaComparisonResult

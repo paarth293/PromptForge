@@ -18,6 +18,7 @@ import AuditModeEntry from '../../components/AuditModeEntry';
 import VerificationScorecardView, { VerificationScorecardData } from '../../components/VerificationScorecardView';
 import HardeningLogView, { HardeningLogData } from '../../components/HardeningLogView';
 import AgentChatWindow, { BlueprintInfo } from '../../components/AgentChatWindow';
+import ExportButton from '../../components/ExportButton';
 import { API_BASE_URL } from '../../lib/api';
 
 export default function AuditPage() {
@@ -89,6 +90,11 @@ export default function AuditPage() {
               </div>
 
               <div className="flex items-center gap-2.5 flex-wrap">
+                <ExportButton
+                  campaignId={auditResult.birthCertificateId || auditResult.blueprint.blueprint_id}
+                  label="Download PDF Report"
+                  size="sm"
+                />
                 <Link
                   href={`/dossier?agentId=${auditResult.blueprint.blueprint_id}`}
                   className="btn-primary text-xs flex items-center gap-1.5"
