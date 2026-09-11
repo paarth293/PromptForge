@@ -1,5 +1,7 @@
 from fastapi import HTTPException
 
+from .auth import get_current_tenant_id  # noqa: F401
+
 
 def verify_tenant_access(resource_tenant_id: str, current_tenant_id: str, resource_name: str = "Resource"):
     """
