@@ -376,26 +376,27 @@ export default function DeepForgeLineageViewer({
   const fitnessDelta = (championFitness - gen0Best).toFixed(1);
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6 text-slate-100 pb-12">
+    <div className="w-full max-w-7xl mx-auto space-y-6 text-[#3D3229] pb-12 font-sans">
       {/* 1. Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-purple-950/40 to-slate-900 border border-purple-800/40 p-6 shadow-2xl">
+      <div className="relative overflow-hidden rounded-2xl bg-[#FBF8F4] border border-[#E8DDD2] p-6 shadow-card">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-[#C75A3B]/5 rounded-full blur-3xl pointer-events-none" />
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center space-x-3">
-            <div className="p-3 bg-purple-500/20 border border-purple-500/30 rounded-xl text-purple-400 shadow-inner">
-              <Dna className="w-7 h-7 animate-pulse" />
+            <div className="p-3 bg-[#C75A3B]/10 border border-[#C75A3B]/20 rounded-xl text-[#C75A3B] shadow-sm">
+              <Dna className="w-7 h-7" />
             </div>
             <div>
               <div className="flex items-center space-x-3">
-                <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                  Deep Forge <span className="text-purple-400 font-mono text-sm px-2.5 py-0.5 rounded-full bg-purple-900/50 border border-purple-700/50">EVOLVE</span>
+                <h1 className="text-2xl font-black tracking-tight text-[#3D3229] flex items-center gap-2">
+                  Deep Forge <span className="text-[#C75A3B] font-mono text-sm px-2.5 py-0.5 rounded-full bg-[#C75A3B]/10 border border-[#C75A3B]/20 font-bold">EVOLVE</span>
                 </h1>
                 {/* STRICT REQUIREMENT: "cached — every token real" label */}
-                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium shadow-sm">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                  <span className="font-semibold">cached — every token real</span>
+                <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold shadow-sm">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                  <span>cached — every token real</span>
                 </div>
               </div>
-              <p className="text-sm text-slate-400 mt-1">
+              <p className="text-sm text-[#666555] mt-1">
                 Multi-generation evolutionary compilation breeding candidate prompts under adversarial pressure.
               </p>
             </div>
@@ -405,7 +406,7 @@ export default function DeepForgeLineageViewer({
             <button
               onClick={handleTriggerOfflineEvolution}
               disabled={isRunningJob}
-              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold transition shadow-lg shadow-purple-900/30 disabled:opacity-50"
+              className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-[#C75A3B] to-[#D97D5E] hover:from-[#B84A2F] hover:to-[#C75A3B] text-white text-sm font-bold transition shadow-md hover:shadow-lg disabled:opacity-50"
             >
               {isRunningJob ? (
                 <RotateCcw className="w-4 h-4 animate-spin" />
@@ -418,55 +419,55 @@ export default function DeepForgeLineageViewer({
         </div>
 
         {runMessage && (
-          <div className="mt-4 p-3 bg-purple-900/40 border border-purple-700/50 rounded-lg text-xs text-purple-200 flex items-center space-x-2">
-            <Info className="w-4 h-4 flex-shrink-0 text-purple-400" />
+          <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-center space-x-2">
+            <Info className="w-4 h-4 flex-shrink-0 text-amber-600" />
             <span>{runMessage}</span>
           </div>
         )}
 
         {/* Top KPI Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-slate-800/80">
-          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-6 border-t border-[#E8DDD2]">
+          <div className="bg-[#F0E6DC]/40 border border-[#E8DDD2] rounded-xl p-3.5">
+            <div className="text-xs text-[#666555] font-semibold flex items-center gap-1.5 mb-1">
+              <Trophy className="w-3.5 h-3.5 text-[#C75A3B]" />
               <span>Champion Fitness</span>
             </div>
-            <div className="text-2xl font-extrabold text-amber-400 flex items-baseline gap-2">
+            <div className="text-2xl font-black text-[#3D3229] flex items-baseline gap-2">
               {championFitness.toFixed(1)}
-              <span className="text-xs text-emerald-400 font-semibold font-mono">
+              <span className="text-xs text-[#2ECC71] font-bold font-mono">
                 (+{fitnessDelta} pts)
               </span>
             </div>
           </div>
 
-          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-              <Layers className="w-3.5 h-3.5 text-blue-400" />
+          <div className="bg-[#F0E6DC]/40 border border-[#E8DDD2] rounded-xl p-3.5">
+            <div className="text-xs text-[#666555] font-semibold flex items-center gap-1.5 mb-1">
+              <Layers className="w-3.5 h-3.5 text-[#D97D5E]" />
               <span>Generations Bred</span>
             </div>
-            <div className="text-2xl font-extrabold text-white">
+            <div className="text-2xl font-black text-[#3D3229]">
               {log.generations.length}{' '}
-              <span className="text-xs text-slate-500 font-normal">rounds</span>
+              <span className="text-xs text-[#9C9288] font-normal">rounds</span>
             </div>
           </div>
 
-          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-              <Activity className="w-3.5 h-3.5 text-purple-400" />
+          <div className="bg-[#F0E6DC]/40 border border-[#E8DDD2] rounded-xl p-3.5">
+            <div className="text-xs text-[#666555] font-semibold flex items-center gap-1.5 mb-1">
+              <Activity className="w-3.5 h-3.5 text-[#C75A3B]" />
               <span>Evaluated Candidates</span>
             </div>
-            <div className="text-2xl font-extrabold text-white">
+            <div className="text-2xl font-black text-[#3D3229]">
               {log.total_candidates_evaluated}{' '}
-              <span className="text-xs text-slate-500 font-normal">architectures</span>
+              <span className="text-xs text-[#9C9288] font-normal">architectures</span>
             </div>
           </div>
 
-          <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5">
-            <div className="text-xs text-slate-400 flex items-center gap-1.5 mb-1">
-              <Clock className="w-3.5 h-3.5 text-emerald-400" />
+          <div className="bg-[#F0E6DC]/40 border border-[#E8DDD2] rounded-xl p-3.5">
+            <div className="text-xs text-[#666555] font-semibold flex items-center gap-1.5 mb-1">
+              <Clock className="w-3.5 h-3.5 text-[#2ECC71]" />
               <span>Wall-Clock Offline Run</span>
             </div>
-            <div className="text-2xl font-extrabold text-emerald-400 font-mono">
+            <div className="text-2xl font-black text-[#2ECC71] font-mono">
               {log.execution_time_seconds.toFixed(1)}s
             </div>
           </div>
@@ -474,17 +475,17 @@ export default function DeepForgeLineageViewer({
 
         {/* Tamper-evident Hash Spine Verification */}
         {log.log_hash && (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-950/80 rounded-lg border border-slate-800 text-xs text-slate-400 font-mono">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 p-2.5 bg-[#F0E6DC]/40 rounded-lg border border-[#E8DDD2] text-xs text-[#666555] font-mono">
             <div className="flex items-center space-x-2">
-              <ShieldCheck className="w-4 h-4 text-purple-400" />
-              <span className="text-slate-300 font-sans font-medium">Verifiable Lineage Hash Chain:</span>
-              <span className="text-slate-400 select-all truncate max-w-md">{log.log_hash}</span>
+              <ShieldCheck className="w-4 h-4 text-[#2ECC71]" />
+              <span className="text-[#3D3229] font-sans font-semibold">Verifiable Lineage Hash Chain:</span>
+              <span className="text-[#666555] select-all truncate max-w-md">{log.log_hash}</span>
             </div>
             <button
               onClick={copyHash}
-              className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-sans transition flex items-center gap-1"
+              className="px-2.5 py-1 rounded-lg bg-[#F0E6DC] hover:bg-[#E8DDD2] text-[#3D3229] border border-[#E8DDD2] text-xs font-sans font-semibold transition flex items-center gap-1"
             >
-              {isCopied ? <Check className="w-3 h-3 text-emerald-400" /> : <Hash className="w-3 h-3" />}
+              {isCopied ? <Check className="w-3 h-3 text-[#2ECC71]" /> : <Hash className="w-3 h-3" />}
               <span>{isCopied ? 'Copied' : 'Copy Hash'}</span>
             </button>
           </div>
@@ -493,23 +494,23 @@ export default function DeepForgeLineageViewer({
 
       {/* 2. Champion Trajectory Spotlight */}
       {log.champion_candidate && (
-        <div className="bg-slate-900/90 border border-amber-500/30 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-          <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div className="bg-[#FBF8F4] border border-[#D97D5E]/40 rounded-2xl p-6 shadow-card relative overflow-hidden">
+          <div className="absolute -top-12 -right-12 w-48 h-48 bg-[#D97D5E]/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-[#E8DDD2]">
             <div className="flex items-center space-x-3">
-              <div className="p-3 bg-amber-500/20 border border-amber-500/40 rounded-xl text-amber-400">
+              <div className="p-3 bg-[#D97D5E]/15 border border-[#D97D5E]/30 rounded-xl text-[#C75A3B]">
                 <Trophy className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase font-bold tracking-wider text-amber-400 font-mono">
+                  <span className="text-xs uppercase font-bold tracking-wider text-[#C75A3B] font-mono">
                     Deep Forge Champion
                   </span>
-                  <span className="px-2 py-0.5 rounded text-xs bg-amber-950/70 border border-amber-700/60 text-amber-300 font-mono font-medium">
+                  <span className="px-2 py-0.5 rounded text-xs bg-[#F0E6DC] border border-[#E8DDD2] text-[#3D3229] font-mono font-bold">
                     {log.champion_candidate.candidate_id}
                   </span>
                 </div>
-                <h3 className="text-lg font-bold text-white mt-0.5">
+                <h3 className="text-lg font-black text-[#3D3229] mt-0.5">
                   Strategy: {log.champion_candidate.strategy.replace(/_/g, ' ').toUpperCase()}
                 </h3>
               </div>
@@ -517,27 +518,27 @@ export default function DeepForgeLineageViewer({
 
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <div className="text-xs text-slate-400">Survival Rate</div>
-                <div className="text-base font-bold text-emerald-400 font-mono">
+                <div className="text-xs text-[#666555] font-medium">Survival Rate</div>
+                <div className="text-base font-black text-[#2ECC71] font-mono">
                   {((log.champion_candidate.survival_rate || 1.0) * 100).toFixed(0)}%
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-slate-400">Goal Completion</div>
-                <div className="text-base font-bold text-blue-400 font-mono">
+                <div className="text-xs text-[#666555] font-medium">Goal Completion</div>
+                <div className="text-base font-black text-blue-600 font-mono">
                   {((log.champion_candidate.goal_completion_rate || 0.9) * 100).toFixed(0)}%
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs text-slate-400">Consistency</div>
-                <div className="text-base font-bold text-purple-400 font-mono">
+                <div className="text-xs text-[#666555] font-medium">Consistency</div>
+                <div className="text-base font-black text-purple-600 font-mono">
                   {((log.champion_candidate.consistency_score || 0.9) * 100).toFixed(0)}%
                 </div>
               </div>
               {onSelectChampion && (
                 <button
                   onClick={() => onSelectChampion(log.champion_candidate!)}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-amber-500/20"
+                  className="px-4 py-2 bg-[#C75A3B] hover:bg-[#B84A2F] text-white font-bold rounded-xl text-xs transition shadow-md"
                 >
                   Deploy Champion
                 </button>
@@ -547,29 +548,29 @@ export default function DeepForgeLineageViewer({
 
           {/* Fitness Trajectory Step-by-Step Visualization */}
           <div className="mt-4 pt-2">
-            <div className="text-xs font-semibold text-slate-400 mb-2 flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <div className="text-xs font-bold text-[#666555] mb-2 flex items-center gap-1.5">
+              <TrendingUp className="w-4 h-4 text-[#2ECC71]" />
               <span>Generational Fitness Trajectory</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {log.generations.map((g, idx) => (
+              {log.generations.map((g) => (
                 <div
                   key={g.generation}
-                  className="p-3 bg-slate-950/80 rounded-xl border border-slate-800/80 relative"
+                  className="p-3 bg-[#F0E6DC]/40 rounded-xl border border-[#E8DDD2] relative"
                 >
                   <div className="flex justify-between items-center text-xs mb-1">
-                    <span className="font-semibold text-slate-300">Generation {g.generation}</span>
-                    <span className="font-mono text-purple-400 font-bold">
+                    <span className="font-bold text-[#3D3229]">Generation {g.generation}</span>
+                    <span className="font-mono text-[#C75A3B] font-bold">
                       Best: {g.best_fitness?.toFixed(1)}
                     </span>
                   </div>
-                  <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-1.5">
+                  <div className="w-full bg-[#E8DDD2] rounded-full h-2 overflow-hidden mb-1.5">
                     <div
-                      className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-emerald-400"
+                      className="h-2 rounded-full bg-gradient-to-r from-[#C75A3B] to-[#2ECC71]"
                       style={{ width: `${Math.min(100, Math.max(0, g.best_fitness || 0))}%` }}
                     />
                   </div>
-                  <div className="flex justify-between text-[11px] text-slate-500">
+                  <div className="flex justify-between text-[11px] text-[#666555]">
                     <span>Avg: {g.average_fitness?.toFixed(1)}</span>
                     <span>{g.candidates.length} candidates</span>
                   </div>
@@ -584,7 +585,7 @@ export default function DeepForgeLineageViewer({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Generation Tabs & Candidate Cards (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="flex items-center justify-between border-b border-[#E8DDD2] pb-2">
             <div className="flex items-center space-x-2">
               {log.generations.map((gen) => (
                 <button
@@ -592,13 +593,15 @@ export default function DeepForgeLineageViewer({
                   onClick={() => setActiveGeneration(gen.generation)}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
                     activeGeneration === gen.generation
-                      ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/30'
-                      : 'bg-slate-900 text-slate-400 hover:bg-slate-800 hover:text-white'
+                      ? 'bg-[#C75A3B] text-white shadow-sm'
+                      : 'bg-[#F0E6DC]/60 text-[#666555] hover:text-[#3D3229] hover:bg-[#F0E6DC] border border-[#E8DDD2]'
                   }`}
                 >
                   <GitBranch className="w-3.5 h-3.5" />
                   <span>Generation {gen.generation}</span>
-                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-black/30 font-mono">
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                    activeGeneration === gen.generation ? 'bg-white/25 text-white font-bold' : 'bg-black/5 text-[#666555]'
+                  }`}>
                     {gen.candidates.length}
                   </span>
                 </button>
@@ -616,62 +619,62 @@ export default function DeepForgeLineageViewer({
                 <div
                   key={cand.candidate_id}
                   onClick={() => setSelectedCandidate(cand)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                  className={`p-4 rounded-xl border transition-all cursor-pointer shadow-card ${
                     isSelected
-                      ? 'bg-purple-950/40 border-purple-500 shadow-lg shadow-purple-950/50'
-                      : 'bg-slate-900/70 border-slate-800 hover:border-slate-700 hover:bg-slate-900'
+                      ? 'bg-[#F0E6DC]/50 border-2 border-[#C75A3B]'
+                      : 'bg-[#FBF8F4] border-[#E8DDD2] hover:border-[#C75A3B]/40 hover:bg-[#F0E6DC]/20'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono text-xs font-bold text-slate-200">
+                        <span className="font-mono text-xs font-bold text-[#3D3229]">
                           {cand.candidate_id}
                         </span>
                         {isChamp && (
-                          <span className="px-2 py-0.5 bg-amber-500/20 text-amber-300 text-[10px] font-bold rounded border border-amber-500/30 flex items-center gap-1">
+                          <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-bold rounded border border-amber-200 flex items-center gap-1">
                             <Trophy className="w-3 h-3" /> Champion
                           </span>
                         )}
                         <span
-                          className={`text-[10px] uppercase font-semibold px-2 py-0.5 rounded ${
+                          className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
                             cand.mutation_type === 'crossover'
-                              ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                              ? 'bg-blue-50 text-blue-700 border border-blue-200'
                               : cand.mutation_type === 'mutation_patch'
-                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
                               : cand.mutation_type === 'elitism'
-                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                              : 'bg-slate-800 text-slate-300'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-[#F0E6DC] text-[#666555]'
                           }`}
                         >
                           {cand.mutation_type || 'seed'}
                         </span>
                       </div>
-                      <div className="text-xs text-purple-400 font-medium mt-1">
+                      <div className="text-xs text-[#C75A3B] font-semibold mt-1">
                         Strategy: {cand.strategy}
                       </div>
                       {cand.mutation_details && (
-                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">
+                        <p className="text-xs text-[#666555] mt-1 line-clamp-2">
                           {cand.mutation_details}
                         </p>
                       )}
                     </div>
 
                     <div className="text-right flex-shrink-0">
-                      <div className="text-xl font-extrabold text-white font-mono">
+                      <div className="text-xl font-black text-[#3D3229] font-mono">
                         {cand.fitness_score ? cand.fitness_score.toFixed(1) : '--'}
                       </div>
-                      <div className="text-[10px] text-slate-500 uppercase font-semibold">
+                      <div className="text-[10px] text-[#9C9288] uppercase font-bold">
                         Fitness Score
                       </div>
                     </div>
                   </div>
 
                   {/* Sub-scores */}
-                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-[11px] text-slate-400">
+                  <div className="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-[#E8DDD2] text-[11px] text-[#666555]">
                     <div>
                       <span>Survival: </span>
-                      <span className="font-mono font-semibold text-emerald-400">
+                      <span className="font-mono font-bold text-[#2ECC71]">
                         {cand.survival_rate !== undefined && cand.survival_rate !== null
                           ? `${(cand.survival_rate * 100).toFixed(0)}%`
                           : '--'}
@@ -679,7 +682,7 @@ export default function DeepForgeLineageViewer({
                     </div>
                     <div>
                       <span>Goal: </span>
-                      <span className="font-mono font-semibold text-blue-400">
+                      <span className="font-mono font-bold text-blue-600">
                         {cand.goal_completion_rate !== undefined && cand.goal_completion_rate !== null
                           ? `${(cand.goal_completion_rate * 100).toFixed(0)}%`
                           : '--'}
@@ -687,7 +690,7 @@ export default function DeepForgeLineageViewer({
                     </div>
                     <div>
                       <span>Consistency: </span>
-                      <span className="font-mono font-semibold text-purple-400">
+                      <span className="font-mono font-bold text-purple-600">
                         {cand.consistency_score !== undefined && cand.consistency_score !== null
                           ? `${(cand.consistency_score * 100).toFixed(0)}%`
                           : '--'}
@@ -703,36 +706,36 @@ export default function DeepForgeLineageViewer({
         {/* Right Column: Detailed Candidate Prompt Inspector (5 cols) */}
         <div className="lg:col-span-5">
           {selectedCandidate ? (
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 sticky top-6 shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-2xl p-5 sticky top-6 shadow-card space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E8DDD2]">
                 <div className="flex items-center space-x-2">
-                  <FileCode className="w-5 h-5 text-purple-400" />
-                  <span className="font-bold text-white text-sm">System Prompt Inspector</span>
+                  <FileCode className="w-5 h-5 text-[#C75A3B]" />
+                  <span className="font-bold text-[#3D3229] text-sm">System Prompt Inspector</span>
                 </div>
-                <span className="font-mono text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300">
+                <span className="font-mono text-xs px-2 py-0.5 rounded bg-[#F0E6DC] text-[#3D3229] font-bold">
                   {selectedCandidate.candidate_id}
                 </span>
               </div>
 
               {/* Lineage Ancestry Pill */}
-              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs space-y-1.5">
-                <div className="text-slate-400 font-semibold flex items-center gap-1.5">
-                  <GitBranch className="w-3.5 h-3.5 text-purple-400" />
+              <div className="p-3 bg-[#F0E6DC]/40 rounded-xl border border-[#E8DDD2] text-xs space-y-1.5">
+                <div className="text-[#666555] font-bold flex items-center gap-1.5">
+                  <GitBranch className="w-3.5 h-3.5 text-[#C75A3B]" />
                   <span>Lineage & Operator</span>
                 </div>
-                <div className="text-slate-300">
-                  Type: <span className="font-mono text-purple-300 font-bold">{selectedCandidate.mutation_type}</span>
+                <div className="text-[#3D3229]">
+                  Type: <span className="font-mono text-[#C75A3B] font-bold">{selectedCandidate.mutation_type}</span>
                 </div>
                 {selectedCandidate.parent_ids && selectedCandidate.parent_ids.length > 0 && (
-                  <div className="text-slate-400">
+                  <div className="text-[#666555]">
                     Parents:{' '}
-                    <span className="font-mono text-slate-300">
+                    <span className="font-mono text-[#3D3229] font-medium">
                       {selectedCandidate.parent_ids.join(' × ')}
                     </span>
                   </div>
                 )}
                 {selectedCandidate.mutation_details && (
-                  <div className="text-slate-400 text-[11px] pt-1 border-t border-slate-900">
+                  <div className="text-[#666555] text-[11px] pt-1 border-t border-[#E8DDD2]">
                     {selectedCandidate.mutation_details}
                   </div>
                 )}
@@ -740,25 +743,25 @@ export default function DeepForgeLineageViewer({
 
               {/* Prompt Text Viewer */}
               <div className="space-y-1.5">
-                <div className="flex justify-between text-xs text-slate-400 font-semibold">
+                <div className="flex justify-between text-xs text-[#666555] font-bold">
                   <span>Synthesized CRISPE Prompt</span>
                   <span>{selectedCandidate.system_prompt.split(/\s+/).length} words</span>
                 </div>
-                <pre className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono leading-relaxed whitespace-pre-wrap max-h-[460px] overflow-y-auto select-all">
+                <pre className="p-4 bg-[#3D3229] text-[#2ECC71] rounded-xl border border-[#E8DDD2] text-xs font-mono leading-relaxed whitespace-pre-wrap max-h-[460px] overflow-y-auto select-all shadow-inner">
                   {selectedCandidate.system_prompt}
                 </pre>
               </div>
 
-              <div className="pt-2 flex justify-between items-center text-xs text-slate-500">
+              <div className="pt-2 flex justify-between items-center text-xs text-[#666555]">
                 <span>Blueprint: {selectedCandidate.blueprint_id}</span>
-                <span className="font-mono text-emerald-400 font-semibold">
+                <span className="font-mono text-[#2ECC71] font-bold">
                   Fitness: {selectedCandidate.fitness_score?.toFixed(1) || '--'}/100
                 </span>
               </div>
             </div>
           ) : (
-            <div className="bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl p-12 text-center text-slate-500">
-              <Dna className="w-10 h-10 mx-auto text-slate-600 mb-2" />
+            <div className="bg-[#FBF8F4] border border-dashed border-[#E8DDD2] rounded-2xl p-12 text-center text-[#666555] shadow-card">
+              <Dna className="w-10 h-10 mx-auto text-[#9C9288] mb-2" />
               <p>Select any candidate from the lineage tree to inspect prompt architecture</p>
             </div>
           )}

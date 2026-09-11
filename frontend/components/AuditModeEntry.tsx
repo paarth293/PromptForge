@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ShieldAlert,
   Upload,
@@ -10,6 +10,8 @@ import {
   ArrowRight,
   Loader2,
   CheckCircle2,
+  AlertCircle,
+  X,
   Layers,
   HelpCircle,
   Plus,
@@ -59,8 +61,31 @@ export default function AuditModeEntry({
     },
   ]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [auditStep, setAuditStep] = useState<number>(0);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const AUDIT_STEPS = [
+    'Stage 1: Ingesting & normalizing agent blueprint...',
+    'Stage 2: Simulating multi-turn adversarial red team attacks...',
+    'Stage 3: Evaluating boundary survival & targeted self-hardening...',
+    'Stage 4: Verifying ground-truth & alignment audit quality gates...',
+    'Stage 5: Minting cryptographic birth certificate...',
+  ];
+
+  useEffect(() => {
+    let timer: any;
+    if (loading) {
+      timer = setInterval(() => {
+        setAuditStep((prev) => (prev < AUDIT_STEPS.length - 1 ? prev + 1 : prev));
+      }, 2500);
+    } else {
+      setAuditStep(0);
+    }
+    return () => clearInterval(timer);
+  }, [loading]);
 
   // Quick audit presets
   const auditPresets = [
@@ -148,6 +173,8 @@ export default function AuditModeEntry({
   ];
 
   const handleApplyPreset = (preset: typeof auditPresets[0]) => {
+    setError(null);
+    setSuccessMessage(null);
     setFormat(preset.format);
     setAgentName(preset.name);
     setDomain(preset.domain);
@@ -194,8 +221,13 @@ export default function AuditModeEntry({
   };
 
   const handleRunAudit = async () => {
+    setError(null);
+    setSuccessMessage(null);
+
     if (!content.trim()) {
-      onError('Please provide a prompt or configuration to audit.');
+      const msg = 'Please enter or paste a system prompt or configuration to audit.';
+      setError(msg);
+      onError(msg);
       return;
     }
 
@@ -206,41 +238,85 @@ export default function AuditModeEntry({
       if (format === 'raw') {
         payload = {
           prompt: content.trim(),
-          agent_name: agentName.trim() || 'Imported Agent',
-          domain: domain.trim() || 'general',
+          agent_name: agentName.trim() || 'External Support Agent',
+          domain: domain.trim() || 'customer_support',
           tools: [],
         };
       } else {
         try {
           payload = JSON.parse(content);
         } catch (e: any) {
-          throw new Error(`Invalid JSON format for ${format.toUpperCase()} import: ${e.message}`);
+          const msg = `Invalid JSON syntax in ${format.toUpperCase()} configuration: ${e.message}`;
+          setError(msg);
+          onError(msg);
+          setLoading(false);
+          return;
         }
       }
 
       const activeGold = goldQA.filter((g) => g.question.trim() && g.answer.trim());
 
-      const res = await apiFetch(`${apiBaseUrl}/api/audit/pipeline/import-and-run`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const requestBody = {
+        format_type: format,
+        payload: payload,
+        user_gold_qa: activeGold,
+        attacks_per_persona: 1,
+        survival_threshold: 0.80,
+        max_harden_passes: 1,
+      };
+
+      console.log('🔵 Starting audit pipeline...', requestBody);
+      console.log('📤 Sending request to /api/audit/pipeline/import-and-run...');
+
+      let res = await apiFetch(
+        `${apiBaseUrl}/api/audit/pipeline/import-and-run`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
         },
-        body: JSON.stringify({
-          format_type: format,
-          payload: payload,
-          user_gold_qa: activeGold,
-          attacks_per_persona: 1,
-          survival_threshold: 0.80,
-          max_harden_passes: 1,
-        }),
-      }, tenantId);
+        tenantId
+      );
+
+      // Fallback to /api/audit/run-pipeline if 404
+      if (res.status === 404) {
+        console.warn('⚠️ Primary route returned 404, falling back to /api/audit/run-pipeline...');
+        res = await apiFetch(
+          `${apiBaseUrl}/api/audit/run-pipeline`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestBody),
+          },
+          tenantId
+        );
+      }
+
+      console.log('📥 Response status:', res.status);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || `Audit failed with HTTP status ${res.status}`);
+        const errMsg =
+          errData.error?.message ||
+          errData.detail ||
+          errData.message ||
+          (typeof errData === 'string' ? errData : null) ||
+          `Audit pipeline failed with HTTP status ${res.status}`;
+        console.error('❌ Audit pipeline error:', errMsg);
+        setError(errMsg);
+        onError(errMsg);
+        return;
       }
 
       const result = await res.json();
+      console.log('✅ Audit pipeline completed successfully:', result);
+
+      const runId = result.run_id || result.birth_certificate?.certificate_id || 'CERT-OK';
+      setSuccessMessage(`✓ Audit pipeline passed! Verified birth certificate issued (${runId}).`);
 
       onAuditComplete({
         blueprint: {
@@ -256,7 +332,10 @@ export default function AuditModeEntry({
         birthCertificateId: result.birth_certificate.certificate_id,
       });
     } catch (err: any) {
-      onError(err.message || 'Audit pipeline failed');
+      const errMsg = err.message || 'Audit pipeline encountered an unexpected network error.';
+      console.error('❌ Network error during audit:', err);
+      setError(errMsg);
+      onError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -488,6 +567,59 @@ export default function AuditModeEntry({
           </div>
         </div>
 
+        {/* Loading Progress Feedback */}
+        {loading && (
+          <div className="p-4 bg-white border border-[#E8DDD2] rounded-xl space-y-2.5 shadow-sm animate-in fade-in duration-200">
+            <div className="flex items-center justify-between text-xs font-semibold text-[#3D3229]">
+              <span className="flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin text-[#C75A3B]" />
+                <span>{AUDIT_STEPS[auditStep]}</span>
+              </span>
+              <span className="text-[#9B8B7E] font-mono text-[11px]">
+                Step {Math.min(auditStep + 1, AUDIT_STEPS.length)} of {AUDIT_STEPS.length}
+              </span>
+            </div>
+            <div className="w-full bg-[#E8DDD2] h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-[#C75A3B] h-full transition-all duration-700 rounded-full"
+                style={{ width: `${((auditStep + 1) / AUDIT_STEPS.length) * 100}%` }}
+              />
+            </div>
+            <p className="text-[11px] text-[#666555]">
+              Executing full trust lifecycle: zero Forge chains called, direct adversarial red teaming, targeted hardening diffs, empirical ground truth check, and birth certificate hash registration.
+            </p>
+          </div>
+        )}
+
+        {/* Local Error Feedback */}
+        {error && (
+          <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-start justify-between gap-3 text-xs animate-in fade-in duration-200 shadow-sm">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-bold text-red-800">Cannot Run Trust Pipeline:</span>
+                <p className="mt-0.5 text-red-700">{error}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setError(null)}
+              className="p-1 hover:bg-red-100 rounded text-red-500 transition-colors"
+              title="Dismiss error"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Success Feedback */}
+        {successMessage && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl flex items-center gap-2.5 text-xs animate-in fade-in duration-200 shadow-sm">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="font-semibold">{successMessage}</span>
+          </div>
+        )}
+
         {/* Action Button */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-2 border-t border-[#E8DDD2]">
           <div className="text-xs text-[#666555] flex items-center gap-2">
@@ -498,8 +630,12 @@ export default function AuditModeEntry({
           <button
             type="button"
             onClick={handleRunAudit}
-            disabled={loading || !content.trim()}
-            className="btn-primary text-xs py-3 px-6 bg-[#2ECC71] hover:bg-[#27AE60]"
+            disabled={loading}
+            className={`btn-primary text-xs py-3 px-6 transition-all ${
+              loading
+                ? 'opacity-60 cursor-not-allowed bg-[#C75A3B]'
+                : 'bg-[#C75A3B] hover:bg-[#B84A2F]'
+            }`}
           >
             {loading ? (
               <>

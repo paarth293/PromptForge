@@ -27,7 +27,8 @@ import {
   AlertCircle,
   RotateCcw,
   Wifi,
-  X
+  X,
+  Play
 } from 'lucide-react';
 import SpecConfirmationCard, { AgentSpecData } from '../components/SpecConfirmationCard';
 import AgentChatWindow, { BlueprintInfo } from '../components/AgentChatWindow';
@@ -43,6 +44,7 @@ const AuditModeEntry = dynamic(() => import('../components/AuditModeEntry'), { s
 import CostLedger from '../components/CostLedger';
 import AttackCascade from '../components/AttackCascade';
 import SmartCard from '../components/SmartCard';
+import HackathonDemoShowcase from '../components/HackathonDemoShowcase';
 import UnifiedNavigationShell, { ForgeStage, SurfaceMode } from '../components/UnifiedNavigationShell';
 import type { HardeningLogData } from '../components/HardeningLogView';
 import type { VerificationScorecardData } from '../components/VerificationScorecardView';
@@ -186,6 +188,7 @@ export default function HomePage() {
   const [costLoading, setCostLoading] = useState(false);
 
   // Stored state across stages
+  const [showDemoShowcase, setShowDemoShowcase] = useState(true);
   const [spec, setSpec] = useState<AgentSpecData | null>(null);
   const [blueprint, setBlueprint] = useState<BlueprintInfo | null>(null);
   const [hardeningLog, setHardeningLog] = useState<HardeningLogData | null>(null);
@@ -1044,7 +1047,36 @@ export default function HomePage() {
               <p className="text-[15px] font-normal text-[#666555] leading-[1.6] mt-2 max-w-3xl">
                 Define your agent&apos;s business intent and operational scope. PromptForge autonomously infers boundary policies, synthesizes CRISPE system prompts, builds function tools, attaches verified runtime guardrails, and executes live adversarial attacks.
               </p>
+
+              {/* Hackathon 1-Click Launch Button (Action 2) */}
+              <div className="mt-6 flex flex-wrap items-center gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDemoShowcase(!showDemoShowcase)}
+                  className="px-6 py-3 bg-[#C75A3B] hover:bg-[#B84A2F] text-white text-sm font-bold rounded-xl shadow-brand-glow transition-all transform hover:-translate-y-0.5 flex items-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>{showDemoShowcase ? '⚡ Hide Live Demo Showcase' : '⚡ Run Hackathon Live Demo (Support Bot)'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPromptInput("Build an enterprise customer support agent for an e-commerce platform with order lookup, refund authorization under $50, and escalation capabilities.");
+                    setShowDemoShowcase(false);
+                  }}
+                  className="px-4 py-3 bg-white border border-[#E8DDD2] hover:bg-[#F0E6DC] text-[#3D3229] text-xs font-bold rounded-xl transition shadow-xs flex items-center gap-1.5"
+                >
+                  <span>Or Build Custom Agent Below ↓</span>
+                </button>
+              </div>
             </div>
+
+            {/* Hackathon Demo Showcase Section */}
+            {showDemoShowcase && (
+              <div className="w-full animate-in fade-in slide-in-from-top-4 duration-300">
+                <HackathonDemoShowcase />
+              </div>
+            )}
 
             {/* Section 2: Setup */}
             <div className="w-full bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-6 md:p-8 shadow-card space-y-6">

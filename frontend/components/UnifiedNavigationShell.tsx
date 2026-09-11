@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import MainNav from './MainNav';
 import {
   Cpu,
   Shield,
@@ -247,52 +248,86 @@ export default function UnifiedNavigationShell({
 
   return (
     <div className="w-full flex flex-col items-center">
-      {/* 64px Header Component (Section 4.1) */}
-      <header className="w-full h-16 bg-[#F0E6DC] border-b border-[#E8DDD2] sticky top-0 z-50 px-4 md:px-8 flex items-center justify-between gap-4 shadow-sm">
-        {/* Logo: "Prompt" in #C75A3B, "Forge" in #D97D5E */}
-        <Link href="/" className="flex items-center gap-2.5 group shrink-0">
-          <div className="w-9 h-9 flex items-center justify-center rounded-xl bg-[#C75A3B] text-white shadow-md group-hover:bg-[#B84A2F] transition-all">
-            <Cpu className="w-5 h-5" />
-          </div>
-          <span className="text-lg font-bold tracking-tight">
-            <span className="text-[#C75A3B]">Prompt</span>
-            <span className="text-[#D97D5E]">Forge</span>
-          </span>
-        </Link>
+      {/* Global Unified Navigation Bar (Action 1 & 4) */}
+      <MainNav
+        activeStage={activeStage}
+        onNavigateStage={onNavigateStage}
+        surface={surface}
+        onSurfaceChange={onSurfaceChange}
+        activeTenant={activeTenant}
+        onTenantChange={onTenantChange}
+      />
 
-        {/* Center: Step Indicator & Progress Bar (Section 4.6) */}
-        <div className="hidden md:flex items-center gap-3 px-4 py-1.5 rounded-full bg-[#FBF8F4] border border-[#E8DDD2] shadow-sm">
+      {/* Sub-Header: Studio Stage Indicator, Progress Bar & Surface Switcher */}
+      <div className="w-full bg-[#FBF8F4]/80 border-b border-[#E8DDD2] px-4 md:px-8 py-2 flex items-center justify-between gap-4 shadow-2xs backdrop-blur-xs">
+        {/* Left: Interactive Stage Selector Dropdown */}
+        <div className="relative" ref={viewMenuRef}>
           <button
             type="button"
             onClick={() => setViewMenuOpen((v) => !v)}
-            className="flex items-center gap-2 text-xs font-semibold text-[#3D3229] hover:text-[#C75A3B] transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#F0E6DC] border border-[#E8DDD2] hover:border-[#C75A3B] text-xs font-semibold text-[#3D3229] transition-all shadow-xs"
           >
             <CurrentIcon className={`w-4 h-4 ${currentView?.color || 'text-[#C75A3B]'}`} />
-            <span>Step {stepIndex} of {visibleViews.length}</span>
-            <span className="text-[#9B8B7E]">·</span>
-            <span className="font-medium text-[#666555]">{currentView?.label || 'Forge Builder'}</span>
+            <span>Step {stepIndex} of {visibleViews.length}:</span>
+            <span className="font-bold text-[#C75A3B]">{currentView?.label || 'Forge Builder'}</span>
+            <ChevronDown className={`w-3.5 h-3.5 text-[#9B8B7E] transition-transform ${viewMenuOpen ? 'rotate-180' : ''}`} />
           </button>
 
-          {/* Progress Bar with #C75A3B to #2ECC71 Gradient */}
-          <div className="w-24 h-1.5 bg-[#E8DDD2] rounded-full overflow-hidden">
+          {/* View Menu Dropdown */}
+          {viewMenuOpen && (
+            <div className="absolute left-0 mt-2 w-72 rounded-xl bg-[#FBF8F4] border border-[#E8DDD2] shadow-card-hover p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+              <div className="text-[10px] uppercase font-bold text-[#9B8B7E] px-2 py-1 tracking-wider">
+                Pipeline Stages
+              </div>
+              <div className="space-y-1 my-1 max-h-80 overflow-y-auto">
+                {visibleViews.map((v) => {
+                  const Icon = v.icon;
+                  const isCurrent = v.id === activeStage;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => handleStageClick(v.id)}
+                      className={`w-full text-left p-2 rounded-lg text-xs flex items-center gap-2.5 transition-colors ${
+                        isCurrent
+                          ? 'bg-[#F0E6DC] text-[#C75A3B] font-bold border border-[#C75A3B]/30'
+                          : 'text-[#3D3229] hover:bg-[#F0E6DC]/60'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${isCurrent ? 'text-[#C75A3B]' : 'text-[#666555]'}`} />
+                      <div className="flex flex-col min-w-0">
+                        <span className="truncate">{v.label}</span>
+                        <span className="text-[10px] text-[#9B8B7E] font-normal truncate">{v.subtitle}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Center: Stage Progress Bar */}
+        <div className="hidden sm:flex items-center gap-3">
+          <span className="text-[11px] font-semibold text-[#666555]">Pipeline Hardening Progress:</span>
+          <div className="w-32 md:w-44 h-2 bg-[#E8DDD2] rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-[#C75A3B] to-[#2ECC71]"
+              className="h-full rounded-full transition-all duration-500 bg-gradient-to-r from-[#C75A3B] via-[#D97D5E] to-[#2ECC71]"
               style={{ width: `${currentProgress}%` }}
             />
           </div>
-          <span className="text-[11px] font-mono font-semibold text-[#666555]">{currentProgress}%</span>
+          <span className="text-[11px] font-mono font-bold text-[#C75A3B]">{currentProgress}%</span>
         </div>
 
-        {/* Right Controls */}
-        <div className="flex items-center gap-2.5">
-          {/* Surface Toggle (Ask vs Deploy) */}
-          <div className="flex items-center p-0.5 bg-[#FBF8F4] border border-[#E8DDD2] rounded-lg text-xs font-medium">
+        {/* Right: Surface Toggle (Ask vs Deploy) */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center p-0.5 bg-[#F0E6DC] border border-[#E8DDD2] rounded-lg text-xs font-medium">
             <button
               type="button"
               onClick={() => onSurfaceChange?.('ask')}
-              className={`px-3 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                 surface === 'ask'
-                  ? 'bg-[#F0E6DC] text-[#C75A3B] font-bold shadow-xs'
+                  ? 'bg-[#FBF8F4] text-[#C75A3B] font-bold shadow-xs'
                   : 'text-[#666555] hover:text-[#3D3229]'
               }`}
               title="Ask Surface: Creator & PM View"
@@ -303,7 +338,7 @@ export default function UnifiedNavigationShell({
             <button
               type="button"
               onClick={() => onSurfaceChange?.('deploy')}
-              className={`px-3 py-1 rounded-md transition-all flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-md transition-all flex items-center gap-1 ${
                 surface === 'deploy'
                   ? 'bg-[#C75A3B] text-white font-bold shadow-sm'
                   : 'text-[#666555] hover:text-[#3D3229]'
@@ -314,166 +349,8 @@ export default function UnifiedNavigationShell({
               <span>Deploy</span>
             </button>
           </div>
-
-          {/* Tenant Switcher */}
-          <div className="relative" ref={tenantMenuRef}>
-            <button
-              type="button"
-              onClick={() => setTenantMenuOpen((v) => !v)}
-              className="px-3 py-1.5 rounded-lg bg-[#FBF8F4] border border-[#E8DDD2] hover:border-[#C75A3B] text-xs font-semibold text-[#3D3229] flex items-center gap-1.5 transition-colors shadow-xs"
-            >
-              <span className="w-2 h-2 rounded-full bg-[#2ECC71]" />
-              <span className="font-mono text-[#3D3229] max-w-[8rem] truncate">{activeTenant}</span>
-              <ChevronDown className="w-3.5 h-3.5 text-[#9B8B7E]" />
-            </button>
-
-            {tenantMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-xl bg-[#FBF8F4] border border-[#E8DDD2] shadow-card-hover p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="text-[10px] uppercase font-bold text-[#9B8B7E] px-2 py-1 tracking-wider">
-                  Active Workspace
-                </div>
-                <div className="space-y-1 my-1">
-                  {TENANTS.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        onTenantChange?.(t.id);
-                        setTenantMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                        activeTenant === t.id
-                          ? 'bg-[#F0E6DC] text-[#C75A3B] border border-[#C75A3B]/30 font-bold'
-                          : 'text-[#3D3229] hover:bg-[#F0E6DC]'
-                      }`}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-semibold text-[#3D3229]">{t.name}</span>
-                        <span className="text-[10px] font-mono text-[#9B8B7E]">{t.id}</span>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-white text-[#666555] border border-[#E8DDD2]">
-                        {t.badge}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <div className="pt-2 border-t border-[#E8DDD2]">
-                  {!showCustomInput ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowCustomInput(true)}
-                      className="w-full text-left px-2 py-1 text-xs text-[#C75A3B] hover:text-[#B84A2F] flex items-center gap-1.5 font-semibold"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Switch to custom tenant...
-                    </button>
-                  ) : (
-                    <form onSubmit={handleCustomTenantSubmit} className="space-y-2 p-1">
-                      <input
-                        type="text"
-                        value={customTenantInput}
-                        onChange={(e) => setCustomTenantInput(e.target.value)}
-                        placeholder="e.g. tenant-org-1"
-                        className="w-full px-2.5 py-1 text-xs bg-white border border-[#E8DDD2] rounded-lg text-[#3D3229] placeholder-[#9B8B7E] focus:outline-none focus:border-[#C75A3B]"
-                        autoFocus
-                      />
-                      <div className="flex items-center gap-2 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setShowCustomInput(false)}
-                          className="px-2 py-1 text-[10px] text-[#666555] hover:text-[#3D3229]"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          type="submit"
-                          className="px-2.5 py-1 text-[10px] btn-primary"
-                        >
-                          Set tenant
-                        </button>
-                      </div>
-                    </form>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Stages Menu */}
-          <div className="relative" ref={viewMenuRef}>
-            <button
-              type="button"
-              onClick={() => setViewMenuOpen((v) => !v)}
-              className="px-3 py-1.5 rounded-lg bg-[#FBF8F4] border border-[#E8DDD2] hover:border-[#C75A3B] text-xs font-semibold text-[#C75A3B] flex items-center gap-1.5 transition-all shadow-xs"
-              title="1-Click Jump to any Forge Stage"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Stages</span>
-              <ChevronDown className="w-3 h-3 opacity-80" />
-            </button>
-
-            {viewMenuOpen && (
-              <div className="absolute right-0 mt-2 w-80 rounded-xl bg-[#FBF8F4] border border-[#E8DDD2] shadow-card-hover p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
-                <div className="flex items-center justify-between px-2 py-1.5 border-b border-[#E8DDD2] mb-1">
-                  <span className="text-[10px] uppercase font-bold text-[#9B8B7E] tracking-wider">
-                    {surface === 'ask' ? 'Ask Surface Views' : `All ${ALL_PRODUCT_VIEWS.length} Evaluation Stages`}
-                  </span>
-                  <span className="text-[10px] font-mono text-[#C75A3B] font-bold">Quick Jump</span>
-                </div>
-
-                <div className="max-h-96 overflow-y-auto space-y-1 py-1">
-                  {visibleViews.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = activeStage === item.id;
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleStageClick(item.id)}
-                        className={`w-full text-left px-3 py-2 rounded-lg flex items-start gap-2.5 transition-colors ${
-                          isActive
-                            ? 'bg-[#F0E6DC] border border-[#C75A3B]/40 text-[#3D3229]'
-                            : 'text-[#666555] hover:bg-[#F0E6DC] hover:text-[#3D3229] border border-transparent'
-                        }`}
-                      >
-                        <div className={`p-1.5 rounded-md bg-white border border-[#E8DDD2] mt-0.5 ${item.color}`}>
-                          <Icon className="w-3.5 h-3.5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-bold text-[#3D3229]">{item.label}</span>
-                            {isActive && (
-                              <span className="text-[9px] uppercase font-bold text-[#2ECC71] flex items-center gap-1 font-mono">
-                                <Check className="w-3 h-3" /> Active
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-[11px] text-[#666555] line-clamp-1 mt-0.5">{item.subtitle}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <div className="pt-2 border-t border-[#E8DDD2] flex items-center justify-between text-[11px] px-2 text-[#666555] font-mono">
-                  <span>Standalone:</span>
-                  <div className="flex items-center gap-2 font-sans font-semibold">
-                    <Link href="/monitor" className="text-[#2ECC71] hover:underline flex items-center gap-0.5">
-                      Monitor <ExternalLink className="w-2.5 h-2.5" />
-                    </Link>
-                    <Link href="/arena" className="text-[#C75A3B] hover:underline flex items-center gap-0.5">
-                      Arena <ExternalLink className="w-2.5 h-2.5" />
-                    </Link>
-                    <Link href="/dossier" className="text-[#666555] hover:underline flex items-center gap-0.5">
-                      Dossier <ExternalLink className="w-2.5 h-2.5" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content Area Container */}
       {children && <div className="w-full max-w-7xl p-4 md:p-8 flex flex-col items-center">{children}</div>}

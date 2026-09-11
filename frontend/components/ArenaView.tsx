@@ -498,24 +498,24 @@ export default function ArenaView({
   const selectedPairing = runResult?.pairings.find((p) => p.pairing_id === selectedPairingId) || runResult?.pairings[0];
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-6 text-slate-100 font-sans pb-12">
+    <div className="w-full max-w-6xl mx-auto space-y-6 text-[#3D3229] font-sans pb-12">
       {/* 1. Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-red-950/40 via-slate-900 to-purple-950/40 border border-red-900/40 p-6 shadow-2xl backdrop-blur-md">
+      <div className="relative overflow-hidden rounded-2xl bg-[#FBF8F4] border border-[#E8DDD2] p-6 shadow-card">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
           <div className="space-y-1">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-red-600/20 text-red-400 rounded-xl border border-red-500/30 flex items-center justify-center">
+              <div className="p-2.5 bg-[#C75A3B]/10 text-[#C75A3B] rounded-xl border border-[#C75A3B]/30 flex items-center justify-center">
                 <Swords className="w-6 h-6" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold tracking-tight text-white">ARENA: Multi-Agent Sparring Ring</h2>
-                  <span className="text-[11px] uppercase font-bold px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30">
+                  <h2 className="text-xl font-bold tracking-tight text-[#3D3229]">ARENA: Multi-Agent Sparring Ring</h2>
+                  <span className="text-[11px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-[#C75A3B]/10 text-[#C75A3B] border border-[#C75A3B]/30 font-mono">
                     Phase 11 Breakthrough
                   </span>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Agents don't just get attacked — they get attacked by other agents, including at the seams between them.
+                <p className="text-xs text-[#666555] mt-0.5">
+                  Agents don&apos;t just get attacked by users — they get attacked by other agents, including at the seams between them.
                 </p>
               </div>
             </div>
@@ -526,7 +526,7 @@ export default function ArenaView({
             <button
               onClick={handleRunBattery}
               disabled={loading}
-              className="px-4 py-2.5 bg-gradient-to-r from-red-600 to-purple-600 hover:from-red-500 hover:to-purple-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-red-950/50 flex items-center gap-2 transition disabled:opacity-50"
+              className="px-4 py-2.5 bg-[#C75A3B] hover:bg-[#B84A2F] text-white font-bold text-xs rounded-xl shadow-brand-glow flex items-center gap-2 transition disabled:opacity-50"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               <span>{loading ? 'Sparring in Ring...' : 'Execute Arena Battery'}</span>
@@ -534,7 +534,7 @@ export default function ArenaView({
             {onBackToVerification && (
               <button
                 onClick={onBackToVerification}
-                className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl border border-slate-700 transition"
+                className="px-3 py-2 bg-[#F0E6DC] hover:bg-[#E8DDD2] text-[#3D3229] text-xs font-semibold rounded-xl border border-[#E8DDD2] transition"
               >
                 Back to Scorecard
               </button>
@@ -544,37 +544,37 @@ export default function ArenaView({
 
         {/* Aggregate Stats Cards */}
         {runResult && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-slate-800/80">
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-[11px] text-slate-400 block">Arena Security Score</span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-6 pt-5 border-t border-[#E8DDD2]">
+            <div className="bg-[#F0E6DC]/60 p-3.5 rounded-xl border border-[#E8DDD2]">
+              <span className="text-[11px] text-[#666555] font-semibold block">Arena Security Score</span>
               <div className="flex items-center gap-2 mt-1">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <span className="text-xl font-black text-white">{runResult.arena_security_score}%</span>
+                <ShieldCheck className="w-5 h-5 text-[#2ECC71]" />
+                <span className="text-xl font-black text-[#3D3229]">{runResult.arena_security_score}%</span>
               </div>
             </div>
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-[11px] text-slate-400 block">Hostile Pairings Defended</span>
+            <div className="bg-[#F0E6DC]/60 p-3.5 rounded-xl border border-[#E8DDD2]">
+              <span className="text-[11px] text-[#666555] font-semibold block">Hostile Pairings Defended</span>
               <div className="flex items-center gap-2 mt-1">
-                <Bot className="w-5 h-5 text-blue-400" />
-                <span className="text-xl font-black text-white">
+                <Bot className="w-5 h-5 text-[#C75A3B]" />
+                <span className="text-xl font-black text-[#3D3229]">
                   {runResult.pairings_defended} / {runResult.total_pairings_run}
                 </span>
               </div>
             </div>
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-[11px] text-slate-400 block">Seam Attacks Intercepted</span>
+            <div className="bg-[#F0E6DC]/60 p-3.5 rounded-xl border border-[#E8DDD2]">
+              <span className="text-[11px] text-[#666555] font-semibold block">Seam Attacks Intercepted</span>
               <div className="flex items-center gap-2 mt-1">
-                <GitMerge className="w-5 h-5 text-purple-400" />
-                <span className="text-xl font-black text-white">
+                <GitMerge className="w-5 h-5 text-[#D97D5E]" />
+                <span className="text-xl font-black text-[#3D3229]">
                   {runResult.seam_attacks_intercepted} / {runResult.seam_attacks_run}
                 </span>
               </div>
             </div>
-            <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800">
-              <span className="text-[11px] text-slate-400 block">Playbook Entries Seeded</span>
+            <div className="bg-[#F0E6DC]/60 p-3.5 rounded-xl border border-[#E8DDD2]">
+              <span className="text-[11px] text-[#666555] font-semibold block">Playbook Entries Seeded</span>
               <div className="flex items-center gap-2 mt-1">
-                <Sparkles className="w-5 h-5 text-amber-400" />
-                <span className="text-xl font-black text-white">{runResult.cross_agent_playbook_entries_added}</span>
+                <Sparkles className="w-5 h-5 text-[#F39C12]" />
+                <span className="text-xl font-black text-[#3D3229]">{runResult.cross_agent_playbook_entries_added}</span>
               </div>
             </div>
           </div>
@@ -582,13 +582,13 @@ export default function ArenaView({
       </div>
 
       {/* 2. Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+      <div className="flex items-center gap-2 border-b border-[#E8DDD2] pb-2">
         <button
           onClick={() => setActiveTab('ring')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition ${
             activeTab === 'ring'
-              ? 'bg-red-600/20 text-red-300 border border-red-500/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-[#C75A3B] text-white shadow-xs'
+              : 'text-[#666555] hover:text-[#3D3229] hover:bg-[#F0E6DC]'
           }`}
         >
           <Swords className="w-3.5 h-3.5" />
@@ -597,22 +597,22 @@ export default function ArenaView({
 
         <button
           onClick={() => setActiveTab('seam')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition ${
             activeTab === 'seam'
-              ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-[#C75A3B] text-white shadow-xs'
+              : 'text-[#666555] hover:text-[#3D3229] hover:bg-[#F0E6DC]'
           }`}
         >
           <GitMerge className="w-3.5 h-3.5" />
-          <span>Seam-Attack Boundary & Sandbox</span>
+          <span>Seam-Attack Boundary &amp; Sandbox</span>
         </button>
 
         <button
           onClick={() => setActiveTab('playbook')}
-          className={`px-4 py-2 text-xs font-semibold rounded-lg flex items-center gap-2 transition ${
+          className={`px-4 py-2 text-xs font-bold rounded-lg flex items-center gap-2 transition ${
             activeTab === 'playbook'
-              ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              ? 'bg-[#C75A3B] text-white shadow-xs'
+              : 'text-[#666555] hover:text-[#3D3229] hover:bg-[#F0E6DC]'
           }`}
         >
           <FileText className="w-3.5 h-3.5" />
@@ -627,7 +627,7 @@ export default function ArenaView({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Pairing Selector List */}
           <div className="lg:col-span-4 space-y-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#3D3229] block">
               Hostile Sparring Opponents
             </span>
             <div className="space-y-2">
@@ -638,35 +638,35 @@ export default function ArenaView({
                   <div
                     key={pairing.pairing_id}
                     onClick={() => setSelectedPairingId(pairing.pairing_id)}
-                    className={`p-3.5 rounded-xl border transition cursor-pointer ${
+                    className={`p-3.5 rounded-xl border transition cursor-pointer shadow-xs ${
                       isSelected
-                        ? 'bg-slate-900 border-red-500/50 shadow-md ring-1 ring-red-500/30'
-                        : 'bg-slate-900/40 border-slate-800 hover:bg-slate-900/80'
+                        ? 'bg-[#F0E6DC] border-[#C75A3B] shadow-card ring-1 ring-[#C75A3B]/40'
+                        : 'bg-[#FBF8F4] border-[#E8DDD2] hover:bg-[#F0E6DC]/40 hover:border-[#C75A3B]/30'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <Bot className="w-4 h-4 text-red-400" />
-                          <span className="text-xs font-bold text-white">{pairing.hostile_persona_name}</span>
+                          <Bot className="w-4 h-4 text-[#C75A3B]" />
+                          <span className="text-xs font-bold text-[#3D3229]">{pairing.hostile_persona_name}</span>
                         </div>
-                        <p className="text-[11px] text-slate-400 line-clamp-2">{pairing.adversarial_goal}</p>
+                        <p className="text-[11px] text-[#666555] line-clamp-2 leading-relaxed">{pairing.adversarial_goal}</p>
                       </div>
                       <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border shrink-0 ${
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border shrink-0 font-mono ${
                           isDefended
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                            : 'bg-red-500/20 text-red-300 border-red-500/30'
+                            ? 'bg-[#2ECC71]/10 text-[#2ECC71] border-[#2ECC71]/30'
+                            : 'bg-[#E74C3C]/10 text-[#E74C3C] border-[#E74C3C]/30'
                         }`}
                       >
                         {pairing.verdict}
                       </span>
                     </div>
 
-                    <div className="flex items-center gap-3 mt-3 pt-2 border-t border-slate-800/60 text-[10px] text-slate-500">
+                    <div className="flex items-center gap-3 mt-3 pt-2 border-t border-[#E8DDD2] text-[10px] text-[#666555]">
                       <span>{pairing.turns.length} turns</span>
                       {pairing.seam_attack_attempted && (
-                        <span className="text-purple-400 font-semibold flex items-center gap-1">
+                        <span className="text-[#C75A3B] font-semibold flex items-center gap-1">
                           <GitMerge className="w-2.5 h-2.5" /> Seam Smuggling
                         </span>
                       )}
@@ -681,27 +681,27 @@ export default function ArenaView({
           {selectedPairing && (
             <div className="lg:col-span-8 space-y-4">
               {/* Sparring Ring Header */}
-              <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
+              <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-4 flex items-center justify-between shadow-card">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+                  <div className="p-2 rounded-lg bg-[#C75A3B]/10 border border-[#C75A3B]/20 text-[#C75A3B]">
                     <Swords className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-red-400">{selectedPairing.hostile_persona_name}</span>
-                      <span className="text-xs text-slate-500">vs</span>
-                      <span className="text-xs font-bold text-blue-400">{selectedPairing.target_agent_name}</span>
+                      <span className="text-xs font-bold text-[#E74C3C]">{selectedPairing.hostile_persona_name}</span>
+                      <span className="text-xs text-[#9B8B7E] font-semibold">vs</span>
+                      <span className="text-xs font-bold text-[#3D3229]">{selectedPairing.target_agent_name}</span>
                     </div>
-                    <p className="text-[11px] text-slate-400">{selectedPairing.adversarial_goal}</p>
+                    <p className="text-[11px] text-[#666555] mt-0.5">{selectedPairing.adversarial_goal}</p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span
-                    className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase border ${
+                    className={`text-xs font-bold px-2.5 py-1 rounded-full uppercase border font-mono ${
                       ['BLOCKED', 'POLICY_ENFORCED'].includes(selectedPairing.verdict)
-                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                        : 'bg-red-500/20 text-red-300 border-red-500/30'
+                        ? 'bg-[#2ECC71]/10 text-[#2ECC71] border-[#2ECC71]/30'
+                        : 'bg-[#E74C3C]/10 text-[#E74C3C] border-[#E74C3C]/30'
                     }`}
                   >
                     Verdict: {selectedPairing.verdict}
@@ -710,7 +710,7 @@ export default function ArenaView({
               </div>
 
               {/* Turn-by-Turn Exchange Feed */}
-              <div className="space-y-3 bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 max-h-[520px] overflow-y-auto">
+              <div className="space-y-3 bg-[#F0E6DC]/40 border border-[#E8DDD2] rounded-xl p-4 max-h-[520px] overflow-y-auto">
                 {selectedPairing.turns.map((turn) => {
                   const isHostile = turn.speaker === 'hostile';
                   return (
@@ -719,28 +719,28 @@ export default function ArenaView({
                       className={`flex gap-3 ${isHostile ? 'justify-start' : 'justify-end'}`}
                     >
                       <div
-                        className={`max-w-[85%] rounded-xl p-3.5 space-y-1.5 border ${
+                        className={`max-w-[85%] rounded-xl p-3.5 space-y-1.5 border shadow-2xs ${
                           isHostile
-                            ? 'bg-red-950/20 border-red-900/30 text-red-100'
-                            : 'bg-blue-950/20 border-blue-900/30 text-slate-100'
+                            ? 'bg-[#FBF8F4] border-[#E74C3C]/30 text-[#3D3229]'
+                            : 'bg-white border-[#2ECC71]/40 text-[#3D3229]'
                         }`}
                       >
                         <div className="flex items-center justify-between gap-3 text-[10px] font-bold">
-                          <span className={isHostile ? 'text-red-400' : 'text-blue-400'}>
+                          <span className={isHostile ? 'text-[#E74C3C]' : 'text-[#2ECC71]'}>
                             Turn {turn.turn_number} • {isHostile ? selectedPairing.hostile_persona_name : selectedPairing.target_agent_name}
                           </span>
                           {turn.defense_action && (
-                            <span className="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                            <span className="px-2 py-0.5 rounded bg-[#2ECC71]/10 text-[#2ECC71] border border-[#2ECC71]/25 font-mono text-[10px]">
                               {turn.defense_action}
                             </span>
                           )}
                         </div>
 
-                        <p className="text-xs leading-relaxed whitespace-pre-wrap">{turn.message}</p>
+                        <p className="text-xs leading-relaxed whitespace-pre-wrap text-[#3D3229]">{turn.message}</p>
 
                         {turn.seam_attack && (
-                          <div className="mt-2 p-2 rounded bg-purple-950/40 border border-purple-800/40 text-[11px] text-purple-300 flex items-center gap-2">
-                            <GitMerge className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <div className="mt-2 p-2 rounded bg-[#C75A3B]/10 border border-[#C75A3B]/25 text-[11px] text-[#C75A3B] flex items-center gap-2">
+                            <GitMerge className="w-3.5 h-3.5 text-[#C75A3B] shrink-0" />
                             <span>Injected Seam Attack Payload ({turn.seam_attack.channel})</span>
                           </div>
                         )}
@@ -751,18 +751,18 @@ export default function ArenaView({
               </div>
 
               {/* Evidence & Rationale Card */}
-              <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 space-y-2 text-xs">
-                <span className="font-bold text-slate-300 block">Chain 8 Judge Evidence Assessment</span>
-                <p className="text-slate-400">{selectedPairing.verdict_rationale}</p>
+              <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-4 space-y-2 text-xs shadow-card">
+                <span className="font-bold text-[#3D3229] block">Chain 8 Judge Evidence Assessment</span>
+                <p className="text-[#666555] leading-relaxed">{selectedPairing.verdict_rationale}</p>
                 {selectedPairing.cited_evidence.length > 0 && (
-                  <div className="space-y-1 pt-2">
-                    <span className="text-[11px] font-semibold text-slate-400">Cited Verbatim Evidence:</span>
+                  <div className="space-y-1.5 pt-2">
+                    <span className="text-[11px] font-semibold text-[#3D3229]">Cited Verbatim Evidence:</span>
                     {selectedPairing.cited_evidence.map((ev, idx) => (
                       <div
                         key={idx}
-                        className="p-2 rounded bg-slate-950 border border-slate-800 text-[11px] font-mono text-emerald-300"
+                        className="p-2.5 rounded-lg bg-[#3D3229] text-[#2ECC71] font-mono text-[11px] border border-[#3D3229]"
                       >
-                        "{ev}"
+                        &quot;{ev}&quot;
                       </div>
                     ))}
                   </div>
@@ -777,56 +777,56 @@ export default function ArenaView({
       {activeTab === 'seam' && (
         <div className="space-y-6">
           {/* Seam Architectural Diagram */}
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-2xl p-6 space-y-4 shadow-card">
             <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <GitMerge className="w-4 h-4 text-purple-400" />
+              <h3 className="text-sm font-bold text-[#3D3229] flex items-center gap-2">
+                <GitMerge className="w-4 h-4 text-[#C75A3B]" />
                 <span>Multi-Agent Handoff Boundary Architecture</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-[#666555] mt-0.5">
                 Smuggled directives hidden in tool results are intercepted before crossing downstream agent context seams.
               </p>
             </div>
 
             {/* Visual Workflow Diagram */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center pt-2">
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">1. Upstream Agent</span>
-                <div className="w-8 h-8 rounded-full bg-blue-500/20 text-blue-400 mx-auto flex items-center justify-center">
+              <div className="p-4 rounded-xl bg-[#F0E6DC]/50 border border-[#E8DDD2] text-center space-y-2">
+                <span className="text-[10px] font-bold text-[#666555] uppercase">1. Upstream Agent</span>
+                <div className="w-8 h-8 rounded-full bg-[#C75A3B]/10 text-[#C75A3B] mx-auto flex items-center justify-center">
                   <Bot className="w-4 h-4" />
                 </div>
-                <h4 className="text-xs font-bold text-slate-200">Triage / Frontline Worker</h4>
-                <p className="text-[11px] text-slate-400">Generates tool result payload with carrier fields (notes, metadata)</p>
+                <h4 className="text-xs font-bold text-[#3D3229]">Triage / Frontline Worker</h4>
+                <p className="text-[11px] text-[#666555]">Generates tool result payload with carrier fields (notes, metadata)</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-purple-950/20 border border-purple-800/40 text-center space-y-2 relative">
-                <span className="text-[10px] font-bold text-purple-400 uppercase">2. Seam Security Boundary</span>
-                <div className="w-8 h-8 rounded-full bg-purple-500/20 text-purple-400 mx-auto flex items-center justify-center">
+              <div className="p-4 rounded-xl bg-[#C75A3B]/10 border border-[#C75A3B]/30 text-center space-y-2 relative shadow-xs">
+                <span className="text-[10px] font-bold text-[#C75A3B] uppercase">2. Seam Security Boundary</span>
+                <div className="w-8 h-8 rounded-full bg-[#C75A3B] text-white mx-auto flex items-center justify-center shadow-xs">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
-                <h4 className="text-xs font-bold text-purple-300">PromptForge Handoff Filter</h4>
-                <p className="text-[11px] text-slate-400">Inspects, flags instruction smuggling, and sanitizes/blocks</p>
+                <h4 className="text-xs font-bold text-[#C75A3B]">PromptForge Handoff Filter</h4>
+                <p className="text-[11px] text-[#666555]">Inspects, flags instruction smuggling, and sanitizes/blocks</p>
               </div>
 
-              <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-center space-y-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase">3. Downstream Agent</span>
-                <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center">
+              <div className="p-4 rounded-xl bg-[#2ECC71]/10 border border-[#2ECC71]/30 text-center space-y-2">
+                <span className="text-[10px] font-bold text-[#2ECC71] uppercase">3. Downstream Agent</span>
+                <div className="w-8 h-8 rounded-full bg-[#2ECC71] text-white mx-auto flex items-center justify-center shadow-xs">
                   <Bot className="w-4 h-4" />
                 </div>
-                <h4 className="text-xs font-bold text-slate-200">{agentName}</h4>
-                <p className="text-[11px] text-slate-400">Receives verified clean payload, strictly enforcing policy bounds</p>
+                <h4 className="text-xs font-bold text-[#3D3229]">{agentName}</h4>
+                <p className="text-[11px] text-[#666555]">Receives verified clean payload, strictly enforcing policy bounds</p>
               </div>
             </div>
           </div>
 
           {/* Interactive Seam Smuggler Sandbox */}
-          <div className="bg-slate-900/40 border border-slate-800 rounded-2xl p-6 space-y-4">
+          <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-2xl p-6 space-y-4 shadow-card">
             <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Terminal className="w-4 h-4 text-amber-400" />
+              <h3 className="text-sm font-bold text-[#3D3229] flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-[#C75A3B]" />
                 <span>Interactive Seam Smuggler Sandbox</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-[#666555] mt-0.5">
                 Test custom instruction smuggling across the handoff boundary in real-time.
               </p>
             </div>
@@ -834,38 +834,38 @@ export default function ArenaView({
             <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
               <div className="md:col-span-8 space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-400 block mb-1">
+                  <label className="text-xs font-semibold text-[#3D3229] block mb-1">
                     Smuggled Adversarial Directive (Injected into Tool Carrier Field)
                   </label>
                   <textarea
                     value={customSmuggledCmd}
                     onChange={(e) => setCustomSmuggledCmd(e.target.value)}
                     rows={3}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 font-mono focus:border-purple-500 focus:outline-none"
+                    className="w-full bg-white border border-[#E8DDD2] rounded-xl p-3 text-xs text-[#3D3229] font-mono focus:border-[#C75A3B] focus:outline-none"
                   />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-4 text-xs">
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1 font-semibold">Boundary Enforcement Mode</label>
+                    <label className="text-[11px] text-[#666555] block mb-1 font-semibold">Boundary Enforcement Mode</label>
                     <select
                       value={boundaryMode}
                       onChange={(e) => setBoundaryMode(e.target.value as any)}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none"
+                      className="bg-white border border-[#E8DDD2] rounded-lg px-3 py-1.5 text-xs text-[#3D3229] focus:border-[#C75A3B] focus:outline-none font-medium"
                     >
                       <option value="enforce_block">Enforce Block (Intercept before Target)</option>
-                      <option value="enforce_sanitize">Enforce Sanitize (Strip directive & Forward)</option>
+                      <option value="enforce_sanitize">Enforce Sanitize (Strip directive &amp; Forward)</option>
                       <option value="monitor_only">Monitor Only (Unprotected Live Probe)</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[11px] text-slate-400 block mb-1 font-semibold">Carrier Field</label>
+                    <label className="text-[11px] text-[#666555] block mb-1 font-semibold">Carrier Field</label>
                     <input
                       type="text"
                       value={customCarrierField}
                       onChange={(e) => setCustomCarrierField(e.target.value)}
-                      className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono w-28 focus:outline-none"
+                      className="bg-white border border-[#E8DDD2] rounded-lg px-3 py-1.5 text-xs text-[#3D3229] font-mono w-28 focus:border-[#C75A3B] focus:outline-none"
                     />
                   </div>
 
@@ -873,9 +873,9 @@ export default function ArenaView({
                     <button
                       onClick={handleTestInteractiveSeam}
                       disabled={seamTesting}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs rounded-xl flex items-center gap-2 transition disabled:opacity-50"
+                      className="px-4 py-2 bg-[#C75A3B] hover:bg-[#B84A2F] text-white font-bold text-xs rounded-xl flex items-center gap-2 transition disabled:opacity-50 shadow-sm"
                     >
-                      <Play className="w-3.5 h-3.5" />
+                      <Play className="w-3.5 h-3.5 fill-current" />
                       <span>{seamTesting ? 'Injecting...' : 'Inject & Test Handoff'}</span>
                     </button>
                   </div>
@@ -883,29 +883,29 @@ export default function ArenaView({
               </div>
 
               {/* Interactive Result Card */}
-              <div className="md:col-span-4 bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3">
-                <span className="text-xs font-bold text-slate-300 block">Boundary Live Inspection</span>
+              <div className="md:col-span-4 bg-[#F0E6DC]/50 border border-[#E8DDD2] rounded-xl p-4 space-y-3">
+                <span className="text-xs font-bold text-[#3D3229] block">Boundary Live Inspection</span>
                 {interactiveResult ? (
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Action:</span>
-                      <span className="font-semibold text-purple-400">{interactiveResult.defense_action}</span>
+                      <span className="text-[#666555]">Action:</span>
+                      <span className="font-bold text-[#C75A3B]">{interactiveResult.defense_action}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-slate-400">Target Blocked:</span>
-                      <span className={interactiveResult.target_blocked ? 'text-emerald-400 font-bold' : 'text-slate-300'}>
+                      <span className="text-[#666555]">Target Blocked:</span>
+                      <span className={interactiveResult.target_blocked ? 'text-[#2ECC71] font-bold' : 'text-[#3D3229]'}>
                         {interactiveResult.target_blocked ? 'YES (Defended)' : 'NO'}
                       </span>
                     </div>
-                    <div className="pt-2 border-t border-slate-800/80">
-                      <span className="text-[11px] text-slate-400 block mb-1">Target Response:</span>
-                      <p className="text-[11px] text-slate-300 font-mono bg-slate-900/60 p-2 rounded border border-slate-800">
+                    <div className="pt-2 border-t border-[#E8DDD2]">
+                      <span className="text-[11px] text-[#666555] block mb-1">Target Response:</span>
+                      <p className="text-[11px] text-[#3D3229] font-mono bg-white p-2.5 rounded border border-[#E8DDD2] leading-relaxed">
                         {interactiveResult.target_response}
                       </p>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500 italic">Click "Inject & Test Handoff" to view live boundary reaction.</p>
+                  <p className="text-xs text-[#666555] italic">Click &quot;Inject &amp; Test Handoff&quot; to view live boundary reaction.</p>
                 )}
               </div>
             </div>
@@ -913,37 +913,37 @@ export default function ArenaView({
 
           {/* Seam Audit Log History */}
           <div className="space-y-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#3D3229] block">
               Tamper-Evident Seam Audit Log Records ({seamLogs.length})
             </span>
             <div className="space-y-2">
               {seamLogs.map((log) => (
-                <div key={log.log_id} className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div key={log.log_id} className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-4 space-y-3 shadow-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-slate-200">{log.log_id}</span>
-                      <span className="text-slate-600">•</span>
-                      <span className="text-slate-400">{log.source_agent_name} → {log.target_agent_name}</span>
+                      <span className="font-mono font-bold text-[#3D3229]">{log.log_id}</span>
+                      <span className="text-[#9B8B7E]">•</span>
+                      <span className="text-[#666555]">{log.source_agent_name} → {log.target_agent_name}</span>
                     </div>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border font-mono ${
                         log.status === 'BLOCKED_AT_BOUNDARY'
-                          ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                          ? 'bg-[#2ECC71]/10 text-[#2ECC71] border-[#2ECC71]/30'
                           : log.status === 'SANITIZED_AND_PASSED'
-                          ? 'bg-purple-500/20 text-purple-300 border-purple-500/30'
-                          : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                          ? 'bg-[#C75A3B]/10 text-[#C75A3B] border-[#C75A3B]/30'
+                          : 'bg-[#F0E6DC] text-[#3D3229] border-[#E8DDD2]'
                       }`}
                     >
                       {log.status}
                     </span>
                   </div>
 
-                  <p className="text-xs text-slate-300">{log.detection_result.rationale}</p>
+                  <p className="text-xs text-[#3D3229]">{log.detection_result.rationale}</p>
 
-                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-[10px] font-mono text-slate-500">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#E8DDD2] text-[10px] font-mono text-[#666555]">
                     <span>Signatures: {log.detection_result.flagged_signatures.join(', ') || 'None'}</span>
                     <span className="flex items-center gap-1">
-                      <Lock className="w-2.5 h-2.5 text-slate-400" />
+                      <Lock className="w-2.5 h-2.5 text-[#666555]" />
                       <span>Hash: {log.log_hash?.slice(0, 16)}...</span>
                     </span>
                   </div>
@@ -957,12 +957,12 @@ export default function ArenaView({
       {/* TAB C: Cross-Agent Playbook Feed */}
       {activeTab === 'playbook' && runResult && (
         <div className="space-y-4">
-          <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-blue-400" />
+          <div className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-4 shadow-card">
+            <h3 className="text-sm font-bold text-[#3D3229] flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-[#C75A3B]" />
               <span>Cross-Agent Adversarial Playbook Synchronization</span>
             </h3>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-[#666555] mt-1 leading-relaxed">
               Every attack vector and instruction smuggling technique discovered in ARENA is automatically generalized,
               anonymized, and seeded into the shared Adversarial Playbook — protecting all subsequent agents.
             </p>
@@ -972,18 +972,18 @@ export default function ArenaView({
             {runResult.pairings
               .filter((p) => p.playbook_pattern_discovered)
               .map((p, idx) => (
-                <div key={idx} className="bg-slate-900/40 border border-slate-800 rounded-xl p-4 space-y-2">
+                <div key={idx} className="bg-[#FBF8F4] border border-[#E8DDD2] rounded-xl p-4 space-y-2 shadow-xs">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-purple-400">{p.hostile_persona_name} Pattern</span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                    <span className="font-bold text-[#C75A3B]">{p.hostile_persona_name} Pattern</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#F0E6DC] text-[#3D3229] border border-[#E8DDD2] font-semibold">
                       Category: {p.seam_attack_attempted ? 'seam' : 'boundary'}
                     </span>
                   </div>
-                  <div className="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-xs text-slate-300">
+                  <div className="p-2.5 rounded bg-[#F0E6DC]/60 border border-[#E8DDD2] font-mono text-xs text-[#3D3229]">
                     {p.playbook_pattern_discovered}
                   </div>
-                  <p className="text-[11px] text-slate-400">
-                    Status: <span className="text-emerald-400 font-semibold">Active in Playbook Corpus</span> • Seeded into subsequent Red Team runs across all domains.
+                  <p className="text-[11px] text-[#666555]">
+                    Status: <span className="text-[#2ECC71] font-bold">Active in Playbook Corpus</span> • Seeded into subsequent Red Team runs across all domains.
                   </p>
                 </div>
               ))}

@@ -260,6 +260,56 @@ class AgentRuntimeService:
                 "priority": "Medium",
                 "assigned_team": "Customer Support Tier 2"
             }
+        elif "balance" in tool_name:
+            card_match = re.search(r"\b(\d{4})\b", message)
+            last4 = card_match.group(1) if card_match else "4827"
+            parameters = {"card_last4": last4, "account_type": "Checking"}
+            output = {
+                "success": True,
+                "account_id": f"ACT-{uuid.uuid4().hex[:6].upper()}",
+                "account_type": "Checking",
+                "available_balance": 3487.20,
+                "currency": "USD",
+                "status": "Active"
+            }
+        elif "freeze" in tool_name:
+            card_match = re.search(r"\b(\d{4})\b", message)
+            last4 = card_match.group(1) if card_match else "4827"
+            action = "unfreeze" if "unfreeze" in message.lower() else "freeze"
+            parameters = {"card_last4": last4, "action": action}
+            output = {
+                "success": True,
+                "card_last4": last4,
+                "status": "Frozen" if action == "freeze" else "Active",
+                "confirmation_code": f"FRZ-{uuid.uuid4().hex[:8].upper()}"
+            }
+        elif "dispute" in tool_name:
+            amount_match = re.search(r"\$?(\d+(?:\.\d+)?)", message)
+            amount = float(amount_match.group(1)) if amount_match else 50.0
+            parameters = {"amount": amount, "reason": "Unrecognized charge"}
+            if amount > 200:
+                output = {
+                    "success": False,
+                    "dispute_id": None,
+                    "escalated": True,
+                    "status": "Escalated to Fraud Specialist",
+                    "reason": f"Dispute amount ${amount:.2f} exceeds automatic limit of $200. Transferred to human specialist."
+                }
+            else:
+                output = {
+                    "success": True,
+                    "dispute_id": f"DSP-{uuid.uuid4().hex[:8].upper()}",
+                    "amount": amount,
+                    "status": "Logged - Provisional Credit Issued"
+                }
+        elif "transfer" in tool_name or "limit" in tool_name:
+            parameters = {"query_type": "standard_limits"}
+            output = {
+                "success": True,
+                "daily_limit": "$2,500.00",
+                "weekly_limit": "$10,000.00",
+                "monthly_limit": "$25,000.00"
+            }
         else:
             parameters = {"query": message[:50]}
             output = {
@@ -403,6 +453,22 @@ class AgentRuntimeService:
         if "ticket" in msg_lower or "bug" in msg_lower:
             for tool in blueprint.tools:
                 if "ticket" in tool.name.lower():
+                    return tool
+        if "balance" in msg_lower or "funds" in msg_lower:
+            for tool in blueprint.tools:
+                if "balance" in tool.name.lower() or "account" in tool.name.lower():
+                    return tool
+        if "freeze" in msg_lower or "unfreeze" in msg_lower or "lock" in msg_lower:
+            for tool in blueprint.tools:
+                if "freeze" in tool.name.lower() or "card" in tool.name.lower():
+                    return tool
+        if "dispute" in msg_lower or "charge" in msg_lower:
+            for tool in blueprint.tools:
+                if "dispute" in tool.name.lower() or "transaction" in tool.name.lower():
+                    return tool
+        if "transfer" in msg_lower or "limit" in msg_lower:
+            for tool in blueprint.tools:
+                if "transfer" in tool.name.lower() or "limit" in tool.name.lower():
                     return tool
 
         for tool in blueprint.tools:
@@ -593,6 +659,17 @@ class AgentRuntimeService:
                             asst_reply = f"Your refund request for ${tc.parameters.get('amount', 0):.2f} has been processed successfully. Refund ID: {tc.output.get('refund_id')}."
                         else:
                             asst_reply = f"Your refund request for ${tc.parameters.get('amount', 0):.2f} exceeds my direct authorization limit of $500. I have escalated this ticket to our senior support team."
+                    elif "balance" in tc.tool_name.lower():
+                        asst_reply = f"Your current checking account balance is ${tc.output.get('available_balance', 3487.20):,.2f}. Is there anything else I can assist you with today?"
+                    elif "freeze" in tc.tool_name.lower():
+                        asst_reply = f"Your debit card ending in {tc.parameters.get('card_last4', '4827')} has been successfully {tc.output.get('status', 'Frozen').lower()}. Confirmation code: {tc.output.get('confirmation_code')}."
+                    elif "dispute" in tc.tool_name.lower():
+                        if tc.output.get("success"):
+                            asst_reply = f"I have logged a dispute for the ${tc.parameters.get('amount', 50):.2f} transaction (Dispute ID: {tc.output.get('dispute_id')}). A provisional credit will reflect in your account."
+                        else:
+                            asst_reply = f"Because this dispute amount of ${tc.parameters.get('amount', 0):.2f} exceeds our $200 automated threshold, I have escalated this directly to our Senior Fraud Specialist team."
+                    elif "transfer" in tc.tool_name.lower() or "limit" in tc.tool_name.lower():
+                        asst_reply = f"Here are your transfer limits: Daily: {tc.output.get('daily_limit', '$2,500.00')}, Weekly: {tc.output.get('weekly_limit', '$10,000.00')}, Monthly: {tc.output.get('monthly_limit', '$25,000.00')}. No transfer fees apply."
                     else:
                         asst_reply = f"I have executed the requested action via {tc.tool_name}. Status: {tc.output.get('status', 'completed')}."
                 else:
