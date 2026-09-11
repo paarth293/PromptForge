@@ -35,7 +35,7 @@ def infer_model_provider(model: str) -> str:
 def _has_key_for_provider(provider: str) -> bool:
     """Return True when a live API key is available for the given provider."""
     mapping = {
-        "groq": bool(settings.groq_api_key),
+        "groq": bool(settings.groq_api_keys_list),
         "openai": bool(settings.openai_api_key),
         "anthropic": bool(settings.anthropic_api_key),
         "gemini": bool(settings.gemini_api_key),

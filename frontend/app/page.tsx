@@ -1051,7 +1051,7 @@ export default function HomePage() {
                         <div className="flex flex-wrap gap-2">
                           {Object.entries(costReport.stage_breakdown).map(([st, c]: [string, any]) => (
                             <span key={st} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 font-mono text-[10px] text-slate-300">
-                              {st}: <strong className="text-amber-300">${typeof c === 'number' ? c.toFixed(4) : c}</strong>
+                              {st}: <strong className="text-amber-300">${c.total_cost_usd?.toFixed(4) || '0.0000'}</strong>
                             </span>
                           ))}
                         </div>

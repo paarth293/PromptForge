@@ -1,6 +1,8 @@
+import asyncio
 import json
 import logging
 import re
+import time
 import uuid
 from typing import Any, Dict, List, Optional, Union
 
@@ -36,13 +38,30 @@ class LLMClient:
         gemini_key: Optional[str] = None,
         groq_key: Optional[str] = None,
         ollama_url: Optional[str] = None,
+        groq_keys_list: Optional[List[str]] = None,
     ):
         self.openai_key = openai_key or settings.openai_api_key
         self.anthropic_key = anthropic_key or settings.anthropic_api_key
         self.gemini_key = gemini_key or settings.gemini_api_key
-        self.groq_key = groq_key or settings.groq_api_key
+        # Multi-key Groq chain: GROQ_API_KEY_1..5 first, then legacy GROQ_API_KEY.
+        if groq_keys_list is not None:
+            self.groq_keys_list = [k for k in groq_keys_list if k and k.strip()]
+        elif groq_key:
+            self.groq_keys_list = [groq_key]
+        else:
+            self.groq_keys_list = list(settings.groq_api_keys_list)
+        self.groq_key = self.groq_keys_list[0] if self.groq_keys_list else ""
         self.ollama_url = ollama_url or settings.ollama_base_url
+        self.ollama_enabled = settings.ollama_enabled
+        self.ollama_model = settings.ollama_model
         self._mock_responses: Dict[str, str] = {}
+        # Fallback-chain state (shared across requests because the client is a singleton)
+        self._groq_rr = 0                                   # round-robin start index
+        self._groq_cooldown: Dict[tuple, float] = {}        # (key_idx, model) -> monotonic ts
+        self._groq_dead_keys: set = set()                   # invalid / revoked keys
+        self._groq_dead_models: set = set()                 # models not on this account
+        self._ollama_models_cache: Optional[List[str]] = None
+        self._ollama_models_cache_ts: float = 0.0
 
     def register_mock_response(self, pattern_or_key: str, response: str):
         """Register a canned response for testing or offline execution."""
@@ -97,7 +116,7 @@ class LLMClient:
         # we don't have, and Groq is configured: prefer a real live call over falling
         # straight through to the mock simulator. Ollama is left alone here since it's
         # typically a deliberate local/offline choice, not a missing-key situation.
-        if provider is None and target_provider in ("openai", "anthropic", "gemini") and self.groq_key:
+        if provider is None and target_provider in ("openai", "anthropic", "gemini") and self.groq_keys_list:
             has_key = {
                 "openai": bool(self.openai_key),
                 "anthropic": bool(self.anthropic_key),
@@ -1036,9 +1055,12 @@ class LLMClient:
         headers: Dict[str, str],
         payload: Dict[str, Any],
         max_retries: int = 3,
-        timeout: float = 60.0
+        timeout: float = 60.0,
+        max_retry_wait: float = 15.0,
     ) -> httpx.Response:
-        import asyncio
+        """POST with small bounded retries. A Retry-After longer than
+        ``max_retry_wait`` is NOT slept on: the error is raised immediately so the
+        caller can fail over (next key / next provider) instead of hanging."""
         import random
 
         from ..core.http_client import get_shared_http_client
@@ -1049,8 +1071,14 @@ class LLMClient:
             try:
                 resp = await client.post(url, headers=headers, json=payload, timeout=timeout)
                 if resp.status_code in (429, 500, 502, 503, 504) and attempt < max_retries - 1:
-                    retry_after = resp.headers.get("Retry-After")
-                    delay = float(retry_after) if (retry_after and retry_after.isdigit()) else (0.5 * (2 ** attempt)) + random.uniform(0, 0.2)
+                    retry_after = _parse_retry_after(resp)
+                    delay = retry_after if retry_after is not None else (0.5 * (2 ** attempt)) + random.uniform(0, 0.2)
+                    if delay > max_retry_wait:
+                        logger.warning(
+                            f"HTTP {resp.status_code} from {url} asks to wait {delay:.0f}s "
+                            f"(> {max_retry_wait:.0f}s cap) - failing over instead of waiting."
+                        )
+                        resp.raise_for_status()
                     logger.warning(f"HTTP {resp.status_code} from {url}, retrying in {delay:.2f}s (attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(delay)
                     continue
@@ -1098,38 +1126,144 @@ class LLMClient:
 
     # Groq's default workhorse model active and available on the user's Groq account.
     GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
+    GROQ_KNOWN_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "groq/compound"]
 
     async def _call_groq(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
-        if not self.groq_key:
-            logger.warning("Groq API key missing. Falling back to mock simulation.")
-            return await self._call_mock(messages, f"{model}-mock-fallback")
+        """
+        Groq multi-key fallback chain:
+          1. primary model on every key (round-robin start so parallel chains spread load)
+          2. GROQ_FALLBACK_MODELS on every key (each model has its own rate-limit bucket)
+          3. if everything is rate-limited only for a few seconds, wait once and retry
+          4. Ollama (local, no rate limits)
+          5. mock simulation (never crashes)
+        A rate-limited (key, model) pair is put on cooldown for its Retry-After so later
+        requests skip it instantly instead of re-hitting Groq.
+        """
+        primary = model if model in self.GROQ_KNOWN_MODELS else self.GROQ_DEFAULT_MODEL
+        models_to_try: List[str] = []
+        for m in [primary, self.GROQ_DEFAULT_MODEL] + settings.groq_fallback_models_list:
+            if m not in models_to_try and m not in self._groq_dead_models:
+                models_to_try.append(m)
 
-        groq_model = model if model in ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "groq/compound"] else self.GROQ_DEFAULT_MODEL
+        keys = self.groq_keys_list
+        network_down = False
+        if keys and models_to_try:
+            for pass_no in (1, 2):
+                result, shortest_wait, network_down = await self._groq_pass(
+                    messages, models_to_try, temperature, max_tokens
+                )
+                if result is not None:
+                    return result
+                if network_down:
+                    logger.warning("Groq unreachable (network error). Skipping remaining Groq attempts.")
+                    break
+                if (
+                    pass_no == 1
+                    and shortest_wait is not None
+                    and shortest_wait <= settings.groq_max_wait_seconds
+                ):
+                    logger.warning(
+                        f"All Groq keys/models briefly rate-limited; waiting {shortest_wait:.1f}s then retrying once."
+                    )
+                    await asyncio.sleep(shortest_wait + 0.25)
+                    continue
+                break
+            if not network_down:
+                logger.warning(
+                    f"All {len(keys)} Groq key(s) x {len(models_to_try)} model(s) unavailable "
+                    f"(rate-limited/invalid). Falling back to Ollama..."
+                )
+        else:
+            logger.warning("No Groq API keys configured. Falling back to Ollama...")
 
+        if self.ollama_enabled and self.ollama_url:
+            return await self._call_ollama(messages, self.ollama_model, temperature, max_tokens)
 
-        try:
-            headers = {
-                "Authorization": f"Bearer {self.groq_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": groq_model,
-                "messages": [m.model_dump() for m in messages],
-                "temperature": temperature,
-                "max_tokens": max_tokens
-            }
-            resp = await self._post_with_retry("https://api.groq.com/openai/v1/chat/completions", headers=headers, payload=payload, timeout=30.0)
-            data = resp.json()
-            return LLMResponse(
-                content=data["choices"][0]["message"]["content"],
-                model=groq_model,
-                provider="groq",
-                usage=data.get("usage", {}),
-                raw_response=data
-            )
-        except Exception as e:
-            logger.warning(f"Groq call failed ({e}). Falling back to mock simulation.")
-            return await self._call_mock(messages, f"{model}-mock-fallback")
+        logger.warning("Ollama disabled. Using mock simulation as last resort.")
+        return await self._call_mock(messages, f"{model}-mock-fallback")
+
+    async def _groq_pass(
+        self, messages: List[LLMMessage], models_to_try: List[str], temperature: float, max_tokens: int
+    ):
+        """One sweep over (model, key) pairs. Returns (response|None, shortest_cooldown|None, network_down)."""
+        keys = self.groq_keys_list
+        n = len(keys)
+        start = self._groq_rr % n
+        self._groq_rr += 1
+        key_order = [(start + i) % n for i in range(n)]
+        shortest_wait: Optional[float] = None
+        attempted = False
+
+        for groq_model in models_to_try:
+            if groq_model in self._groq_dead_models:
+                continue
+            for key_idx in key_order:
+                if key_idx in self._groq_dead_keys:
+                    continue
+                now = time.monotonic()
+                until = self._groq_cooldown.get((key_idx, groq_model), 0.0)
+                if until > now:
+                    wait = until - now
+                    shortest_wait = wait if shortest_wait is None else min(shortest_wait, wait)
+                    continue
+
+                attempted = True
+                label = f"Groq key {key_idx + 1}/{n} [{groq_model}]"
+                payload = {
+                    "model": groq_model,
+                    "messages": [m.model_dump() for m in messages],
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                if "qwen" in groq_model:
+                    payload["reasoning_format"] = "hidden"   # keep <think> blocks out of JSON outputs
+                headers = {"Authorization": f"Bearer {keys[key_idx]}", "Content-Type": "application/json"}
+                try:
+                    resp = await self._post_with_retry(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers=headers, payload=payload,
+                        max_retries=1, timeout=settings.groq_timeout_seconds,
+                    )
+                    data = resp.json()
+                    logger.info(f"{label} succeeded")
+                    content = data["choices"][0]["message"].get("content") or ""
+                    content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL)
+                    return LLMResponse(
+                        content=content,
+                        model=groq_model,
+                        provider="groq",
+                        usage=data.get("usage", {}),
+                        raw_response=data,
+                    ), None, False
+                except httpx.HTTPStatusError as e:
+                    status = e.response.status_code
+                    body = _safe_error_text(e.response)
+                    if status == 429:
+                        wait = _parse_retry_after(e.response) or 60.0
+                        self._groq_cooldown[(key_idx, groq_model)] = time.monotonic() + wait
+                        shortest_wait = wait if shortest_wait is None else min(shortest_wait, wait)
+                        logger.warning(f"{label} rate-limited (429), cooling down {wait:.0f}s. Trying next key...")
+                    elif status in (401, 403):
+                        self._groq_dead_keys.add(key_idx)
+                        logger.warning(f"{label} rejected ({status}: invalid/revoked key). Disabling this key. {body}")
+                    elif status == 404 or "model_not_found" in body or "decommissioned" in body:
+                        self._groq_dead_models.add(groq_model)
+                        logger.warning(f"Groq model {groq_model} not available on this account ({status}). Skipping model.")
+                        break
+                    elif status in (400, 413, 422):
+                        logger.warning(f"{label} cannot serve this request ({status}): {body}. Trying next model...")
+                        break
+                    else:
+                        logger.warning(f"{label} failed with HTTP {status}: {body}. Trying next key...")
+                except (httpx.ConnectError, httpx.ConnectTimeout) as e:
+                    logger.warning(f"{label} connection error ({type(e).__name__}).")
+                    return None, shortest_wait, True
+                except Exception as e:
+                    logger.warning(f"{label} failed ({type(e).__name__}: {str(e)[:120]}). Trying next key...")
+
+        if not attempted and shortest_wait is not None:
+            logger.warning(f"Every Groq key/model is cooling down (next free in {shortest_wait:.0f}s).")
+        return None, shortest_wait, False
 
     async def _call_anthropic(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
         if not self.anthropic_key:
@@ -1197,29 +1331,115 @@ class LLMClient:
             raw_response=data
         )
 
+    async def _list_ollama_models(self) -> List[str]:
+        """Names of locally pulled Ollama models (cached for 30s). Raises if Ollama is down."""
+        now = time.monotonic()
+        if self._ollama_models_cache is not None and now - self._ollama_models_cache_ts < 30:
+            return self._ollama_models_cache
+        from ..core.http_client import get_shared_http_client
+        client = get_shared_http_client()
+        r = await client.get(f"{self.ollama_url.rstrip('/')}/api/tags", timeout=3.0)
+        r.raise_for_status()
+        names = [m.get("name", "") for m in r.json().get("models", []) if m.get("name")]
+        self._ollama_models_cache, self._ollama_models_cache_ts = names, now
+        return names
+
+    @staticmethod
+    def _match_ollama_model(wanted: str, available: List[str]) -> Optional[str]:
+        if not wanted:
+            return None
+        w = wanted.lower()
+        for name in available:
+            n = name.lower()
+            if n == w or n == f"{w}:latest" or n.split(":")[0] == w:
+                return name
+        return None
+
     async def _call_ollama(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
+        try:
+            available = await self._list_ollama_models()
+        except Exception as e:
+            logger.warning(
+                f"Ollama not reachable at {self.ollama_url} ({type(e).__name__}). "
+                "Start it with 'ollama serve'. Using mock simulation."
+            )
+            return await self._call_mock(messages, f"{model}-mock-fallback")
+
+        if not available:
+            logger.warning("Ollama is running but has no models. Run 'ollama pull llama3.2'. Using mock simulation.")
+            return await self._call_mock(messages, f"{model}-mock-fallback")
+
+        chosen = (
+            self._match_ollama_model(model, available)
+            or self._match_ollama_model(self.ollama_model, available)
+            or available[0]
+        )
+        if chosen.split(":")[0].lower() != (model or "").split(":")[0].lower():
+            logger.info(f"Ollama: '{model}' not pulled locally, using '{chosen}' instead.")
+
         url = f"{self.ollama_url.rstrip('/')}/api/chat"
         payload = {
-            "model": model,
+            "model": chosen,
             "messages": [m.model_dump() for m in messages],
             "options": {
                 "temperature": temperature,
-                "num_predict": max_tokens
+                "num_predict": max_tokens,
+                "num_ctx": settings.ollama_num_ctx,
             },
-            "stream": False
+            "stream": False,
         }
         try:
-            resp = await self._post_with_retry(url, headers={"Content-Type": "application/json"}, payload=payload, timeout=30.0)
+            logger.info(f"Calling Ollama model '{chosen}'")
+            resp = await self._post_with_retry(
+                url, headers={"Content-Type": "application/json"}, payload=payload,
+                max_retries=1, timeout=settings.ollama_timeout_seconds,
+            )
             data = resp.json()
+            logger.info(f"Ollama '{chosen}' succeeded")
             return LLMResponse(
                 content=data["message"]["content"],
-                model=model,
+                model=chosen,
                 provider="ollama",
-                raw_response=data
+                raw_response=data,
             )
         except Exception as e:
-            logger.warning(f"Ollama connection failed ({e}). Falling back to mock simulation.")
+            logger.warning(f"Ollama call failed ({type(e).__name__}: {str(e)[:120]}). Using mock simulation.")
             return await self._call_mock(messages, f"{model}-mock-fallback")
+
+
+def _parse_duration(text: str) -> Optional[float]:
+    """Parse Groq-style durations: '646', '7.66s', '2m59.56s', '1h2m3s', '120ms'."""
+    if not text:
+        return None
+    text = text.strip()
+    try:
+        return float(text)
+    except ValueError:
+        pass
+    total, matched = 0.0, False
+    for num, unit in re.findall(r"(\d+(?:\.\d+)?)(ms|h|m|s)", text):
+        matched = True
+        v = float(num)
+        total += {"h": 3600, "m": 60, "s": 1, "ms": 0.001}[unit] * v
+    return total if matched else None
+
+
+def _parse_retry_after(resp: httpx.Response) -> Optional[float]:
+    """Seconds to wait from Retry-After, Groq reset headers, or the error message."""
+    for h in ("retry-after", "x-ratelimit-reset-tokens", "x-ratelimit-reset-requests"):
+        v = _parse_duration(resp.headers.get(h, ""))
+        if v is not None:
+            return v
+    m = re.search(r"try again in ((?:\d+(?:\.\d+)?(?:ms|h|m|s))+)", _safe_error_text(resp))
+    return _parse_duration(m.group(1)) if m else None
+
+
+def _safe_error_text(resp: httpx.Response) -> str:
+    try:
+        return resp.text[:300]
+    except Exception:
+        return ""
+
 
 _default_client: Optional[LLMClient] = None
 

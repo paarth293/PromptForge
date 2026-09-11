@@ -190,31 +190,35 @@ def get_current_tenant_id(
 
     Priority order:
     1. Signed JWT Bearer token in Authorization header.
-    2. Explicit query param (for EventSource SSE streaming).
+    2. Explicit query param (for EventSource SSE streaming — EventSource cannot send headers).
     3. X-Tenant-ID header (allowed in development/demo mode).
     4. Fallback to settings.tenant_default_id.
 
-    In production mode (PROMPTFORGE_ENV=production), a valid Bearer token is strictly required.
+    In production mode (PROMPTFORGE_ENV=production), a valid Bearer token OR query param required.
     """
     # 1. Bearer Token Verification
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
-        payload = decode_access_token(token)
-        authenticated_tenant = payload.get("tenant_id")
-        if authenticated_tenant:
-            return authenticated_tenant
+        try:
+            payload = decode_access_token(token)
+            authenticated_tenant = payload.get("tenant_id")
+            if authenticated_tenant:
+                return authenticated_tenant
+        except HTTPException:
+            # Bearer token present but invalid — don't fall back, let it fail
+            raise
 
-    # Strict production enforcement
+    # 2. Query param (EventSource SSE) — check this BEFORE production enforcement
+    if tenant_id and tenant_id.strip():
+        return tenant_id.strip()
+
+    # Strict production enforcement (only if neither Bearer nor query param present)
     if settings.promptforge_env == "production":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Production environment mandates signed JWT Bearer authentication.",
+            detail="Production environment mandates signed JWT Bearer authentication or valid tenant_id query parameter.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-
-    # 2. Query param (EventSource SSE)
-    if tenant_id and tenant_id.strip():
-        return tenant_id.strip()
 
     # 3. Development / Demo header fallback
     if x_tenant_id and x_tenant_id.strip():

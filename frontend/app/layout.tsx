@@ -11,6 +11,9 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'PromptForge — The Self-Hardening Forge for AI Agents',
   description: 'The Operating System for AI Agents, Built Entirely Through Prompts.',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

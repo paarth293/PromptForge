@@ -97,9 +97,21 @@ export default function RedTeamFeed({
     };
   }, [blueprintId]);
 
+  const cleanupEventSource = (es: EventSource) => {
+    if (!es) return;
+    try {
+      es.onmessage = null;
+      es.onerror = null;
+      es.close();
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+  };
+
   const startRedTeamStream = () => {
     if (eventSourceRef.current) {
-      eventSourceRef.current.close();
+      cleanupEventSource(eventSourceRef.current);
+      eventSourceRef.current = null;
     }
 
     setRunning(true);
@@ -121,6 +133,14 @@ export default function RedTeamFeed({
           if (data.type === 'status') {
             setStatusMessage(data.message);
             setCurrentStage(data.stage);
+            // Handle error stage
+            if (data.stage === 'error') {
+              setError(data.message);
+              setRunning(false);
+              cleanupEventSource(es);
+              eventSourceRef.current = null;
+              return;
+            }
           } else if (data.type === 'campaign_init') {
             setTotalExpected(data.total_attacks);
             setStatusMessage(`Gated Campaign Ready: ${data.total_attacks} attacks queued.`);
@@ -136,7 +156,8 @@ export default function RedTeamFeed({
             setReport(data.report);
             setRunning(false);
             setStatusMessage('Red Team pass complete. Final report generated and hashed.');
-            es.close();
+            cleanupEventSource(es);
+            eventSourceRef.current = null;
           }
         } catch (err: any) {
           console.error('Failed to parse SSE event:', err);
@@ -144,9 +165,11 @@ export default function RedTeamFeed({
       };
 
       es.onerror = (err) => {
-        console.warn('SSE stream error or closed, falling back to REST endpoint:', err);
-        es.close();
+        console.error('SSE stream error:', err);
+        cleanupEventSource(es);
+        eventSourceRef.current = null;
         // Fallback to direct POST execution if SSE disconnects
+        setStatusMessage('SSE stream disconnected, attempting REST fallback...');
         fetchFallbackReport();
       };
     } catch (err: any) {

@@ -642,97 +642,134 @@ class RedTeamService:
         """
         Streams live Red Team campaign events in real time as each attack is executed and judged.
         """
-        yield {
-            "type": "status",
-            "stage": "generating",
-            "message": "Generating adversarial attack vectors across diverse attacker personas..."
-        }
-
-        raw_attacks = await self.generate_full_campaign(
-            blueprint=blueprint,
-            attacks_per_persona=attacks_per_persona,
-            model=generator_model,
-            include_ollama=include_ollama
-        )
-
-        yield {
-            "type": "status",
-            "stage": "quality_gating",
-            "message": "Applying attack quality gate: verifying target surfaces and eliminating duplicates..."
-        }
-
-        gate_res = self.apply_quality_gate(blueprint, raw_attacks)
-        passed_attacks = gate_res.passed_attacks
-
-        yield {
-            "type": "campaign_init",
-            "total_attacks": len(passed_attacks),
-            "difficulty_mix": gate_res.difficulty_counts,
-            "rejected_off_target": len(gate_res.rejected_off_target),
-            "rejected_duplicates": len(gate_res.rejected_duplicates)
-        }
-
-        yield {
-            "type": "status",
-            "stage": "attacking",
-            "message": f"Executing {len(passed_attacks)} attacks concurrently and streaming live verdicts..."
-        }
-
-        transcripts: List[ExecutedAttackTranscript] = []
-        verdicts: List[AttackVerdict] = []
-        completed_count = 0
-
-        # Stream attack execution and immediately judge each one
-        async for _, transcript in self.stream_attack_execution(
-            blueprint=blueprint,
-            attacks=passed_attacks,
-            concurrency=concurrency
-        ):
-            transcripts.append(transcript)
-            verdict = await self.judge_attack_transcript(
-                blueprint=blueprint,
-                transcript=transcript,
-                generator_model=generator_model
-            )
-            verdicts.append(verdict)
-            completed_count += 1
-
+        try:
             yield {
-                "type": "verdict",
-                "completed": completed_count,
-                "total": len(passed_attacks),
-                "verdict": verdict.model_dump(mode="json")
+                "type": "status",
+                "stage": "generating",
+                "message": "Generating adversarial attack vectors across diverse attacker personas..."
             }
 
-        yield {
-            "type": "status",
-            "stage": "cross_checking",
-            "message": "Selecting 20% sample for independent judge cross-checking..."
-        }
+            raw_attacks = await self.generate_full_campaign(
+                blueprint=blueprint,
+                attacks_per_persona=attacks_per_persona,
+                model=generator_model,
+                include_ollama=include_ollama
+            )
 
-        enriched_verdicts, agreement_rate = await self.perform_judge_cross_check(
-            blueprint=blueprint,
-            transcripts=transcripts,
-            verdicts=verdicts,
-            sample_rate=cross_check_sample_rate
-        )
+            # Validation: Check if attacks were generated
+            if not raw_attacks:
+                logger.error(f"Attack generation failed: no attacks generated for blueprint {blueprint.blueprint_id}")
+                yield {
+                    "type": "status",
+                    "stage": "error",
+                    "message": "ERROR: No attacks generated. Check seed corpus and LLM configuration."
+                }
+                return
 
-        yield {
-            "type": "cross_check_complete",
-            "agreement_rate": agreement_rate
-        }
+            logger.info(f"Generated {len(raw_attacks)} raw attacks for blueprint {blueprint.blueprint_id}")
 
-        report = self.assemble_redteam_report(
-            blueprint=blueprint,
-            verdicts=enriched_verdicts,
-            difficulty_mix=gate_res.difficulty_counts,
-            cross_check_agreement_rate=agreement_rate
-        )
-        await self.repo.save_redteam_report(report)
+            yield {
+                "type": "status",
+                "stage": "quality_gating",
+                "message": "Applying attack quality gate: verifying target surfaces and eliminating duplicates..."
+            }
 
-        yield {
-            "type": "report_ready",
-            "report": report.model_dump(mode="json")
-        }
+            gate_res = self.apply_quality_gate(blueprint, raw_attacks)
+            passed_attacks = gate_res.passed_attacks
+
+            # Validation: Check if quality gate passed any attacks
+            if not passed_attacks:
+                logger.error(f"Quality gate rejected all {len(raw_attacks)} attacks for blueprint {blueprint.blueprint_id}")
+                yield {
+                    "type": "status",
+                    "stage": "error",
+                    "message": f"ERROR: Quality gate rejected all {len(raw_attacks)} attacks. Check guardrails and boundaries."
+                }
+                return
+
+            logger.info(f"Quality gate passed {len(passed_attacks)}/{len(raw_attacks)} attacks")
+
+            yield {
+                "type": "campaign_init",
+                "total_attacks": len(passed_attacks),
+                "difficulty_mix": gate_res.difficulty_counts,
+                "rejected_off_target": len(gate_res.rejected_off_target),
+                "rejected_duplicates": len(gate_res.rejected_duplicates)
+            }
+
+            yield {
+                "type": "status",
+                "stage": "attacking",
+                "message": f"Executing {len(passed_attacks)} attacks concurrently and streaming live verdicts..."
+            }
+
+            transcripts: List[ExecutedAttackTranscript] = []
+            verdicts: List[AttackVerdict] = []
+            completed_count = 0
+
+            # Stream attack execution and immediately judge each one
+            async for _, transcript in self.stream_attack_execution(
+                blueprint=blueprint,
+                attacks=passed_attacks,
+                concurrency=concurrency
+            ):
+                transcripts.append(transcript)
+                verdict = await self.judge_attack_transcript(
+                    blueprint=blueprint,
+                    transcript=transcript,
+                    generator_model=generator_model
+                )
+                verdicts.append(verdict)
+                completed_count += 1
+
+                yield {
+                    "type": "verdict",
+                    "completed": completed_count,
+                    "total": len(passed_attacks),
+                    "verdict": verdict.model_dump(mode="json")
+                }
+
+            logger.info(f"Completed judging {completed_count} attack transcripts")
+
+            yield {
+                "type": "status",
+                "stage": "cross_checking",
+                "message": "Selecting 20% sample for independent judge cross-checking..."
+            }
+
+            enriched_verdicts, agreement_rate = await self.perform_judge_cross_check(
+                blueprint=blueprint,
+                transcripts=transcripts,
+                verdicts=verdicts,
+                sample_rate=cross_check_sample_rate
+            )
+
+            yield {
+                "type": "cross_check_complete",
+                "agreement_rate": agreement_rate
+            }
+
+            report = self.assemble_redteam_report(
+                blueprint=blueprint,
+                verdicts=enriched_verdicts,
+                difficulty_mix=gate_res.difficulty_counts,
+                cross_check_agreement_rate=agreement_rate
+            )
+            await self.repo.save_redteam_report(report)
+
+            yield {
+                "type": "report_ready",
+                "report": report.model_dump(mode="json")
+            }
+
+        except Exception as e:
+            import traceback
+            error_msg = str(e)
+            logger.error(f"Red Team stream error for blueprint {blueprint.blueprint_id}: {error_msg}\n{traceback.format_exc()}")
+            yield {
+                "type": "status",
+                "stage": "error",
+                "message": f"ERROR: {error_msg}"
+            }
 
 
