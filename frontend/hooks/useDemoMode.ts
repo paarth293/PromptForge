@@ -1,104 +1,54 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
-import { DemoScenario, DemoStep } from '../data/demo-scenarios';
+// Demo Mode Hook for PromptForge Judge Presentation
+// Manages switching between BLOCKED, DEGRADED, and COMPROMISED verdict states
 
-export interface UseDemoModeReturn {
-  currentStepIndex: number;
-  currentStep: DemoStep | null;
-  progress: number;
-  costTicker: number;
-  isPlaying: boolean;
-  startDemo: () => void;
-  stopDemo: () => void;
-  resetDemo: () => void;
+import { useState, useEffect } from 'react';
+import { DEMO_VERDICTS, DemoVerdictState } from '../fixtures/demo-mode-system';
+import { ArenaRunResultData } from '../components/ArenaView';
+
+export interface DemoModeState {
+  isEnabled: boolean;
+  verdictState: DemoVerdictState;
+  verdict: ArenaRunResultData | null;
 }
 
-export function useDemoMode(scenario: DemoScenario): UseDemoModeReturn {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentStepIndex, setCurrentStepIndex] = useState(-1);
-  const [progress, setProgress] = useState(0);
-  const [costTicker, setCostTicker] = useState(0);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const animRef = useRef<number | null>(null);
+export const useDemoMode = (initialEnabled: boolean = false) => {
+  const [isEnabled, setIsEnabled] = useState<boolean>(initialEnabled);
+  const [verdictState, setVerdictState] = useState<DemoVerdictState>('blocked');
+  const [verdict, setVerdict] = useState<ArenaRunResultData | null>(null);
 
-  // Main animation loop
+  // Update verdict whenever verdictState changes
   useEffect(() => {
-    if (!isPlaying || !startTime) return;
+    if (isEnabled) {
+      const selectedVerdict = DEMO_VERDICTS[verdictState];
+      setVerdict(selectedVerdict as ArenaRunResultData);
+    } else {
+      setVerdict(null);
+    }
+  }, [isEnabled, verdictState]);
 
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const percentComplete = Math.min((elapsed / scenario.duration) * 100, 100);
+  const toggleDemoMode = () => {
+    setIsEnabled(!isEnabled);
+  };
 
-      // Update overall progress
-      setProgress(percentComplete);
+  const setDemoVerdictState = (state: DemoVerdictState) => {
+    setVerdictState(state);
+  };
 
-      // Update which step is active
-      let activeStepIdx = -1;
-      for (let i = 0; i < scenario.steps.length; i++) {
-        if (elapsed >= scenario.steps[i].startTime) {
-          activeStepIdx = i;
-        }
-      }
-      setCurrentStepIndex(activeStepIdx);
-
-      // Animate cost ticker
-      const targetCost = scenario.costBreakdown.total;
-      const currentCostProgress = percentComplete / 100;
-      setCostTicker(+(targetCost * currentCostProgress).toFixed(4));
-
-      // Continue animation or stop
-      if (elapsed >= scenario.duration) {
-        setIsPlaying(false);
-        setProgress(100);
-        setCostTicker(targetCost);
-        setCurrentStepIndex(scenario.steps.length);
-      } else {
-        animRef.current = requestAnimationFrame(animate);
-      }
+  const getDemoIndicator = () => {
+    if (!isEnabled) return null;
+    return {
+      state: verdictState,
+      label: verdictState.charAt(0).toUpperCase() + verdictState.slice(1),
+      color: verdictState === 'blocked' ? '#2ECC71' : verdictState === 'degraded' ? '#F39C12' : '#E74C3C',
     };
-
-    animRef.current = requestAnimationFrame(animate);
-    return () => {
-      if (animRef.current) cancelAnimationFrame(animRef.current);
-    };
-  }, [isPlaying, startTime, scenario]);
-
-  const startDemo = useCallback(() => {
-    setStartTime(Date.now());
-    setIsPlaying(true);
-    setCurrentStepIndex(0);
-    setProgress(0);
-    setCostTicker(0);
-  }, []);
-
-  const stopDemo = useCallback(() => {
-    setIsPlaying(false);
-    if (animRef.current) cancelAnimationFrame(animRef.current);
-  }, []);
-
-  const resetDemo = useCallback(() => {
-    setIsPlaying(false);
-    if (animRef.current) cancelAnimationFrame(animRef.current);
-    setCurrentStepIndex(-1);
-    setProgress(0);
-    setCostTicker(0);
-    setStartTime(null);
-  }, []);
-
-  const currentStep =
-    currentStepIndex >= 0 && currentStepIndex < scenario.steps.length
-      ? scenario.steps[currentStepIndex]
-      : null;
+  };
 
   return {
-    currentStepIndex,
-    currentStep,
-    progress,
-    costTicker,
-    isPlaying,
-    startDemo,
-    stopDemo,
-    resetDemo,
+    isEnabled,
+    verdictState,
+    verdict,
+    toggleDemoMode,
+    setDemoVerdictState,
+    getDemoIndicator,
   };
-}
-
-export default useDemoMode;
+};
