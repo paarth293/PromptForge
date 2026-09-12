@@ -158,7 +158,14 @@ class LLMClient:
         return resp
 
     async def _call_mock(self, messages: List[LLMMessage], model: str) -> LLMResponse:
-        user_content = next((m.content for m in reversed(messages) if m.role == "user"), "")
+        # Match against EVERY task turn, not just the last one. execute_chain_with_retry
+        # appends a "previous output failed validation" nudge on each retry; if we only
+        # looked at the final user message, attempts 2..N would carry none of the branch
+        # keywords below, fall through to the generic catch-all, and fail validation
+        # forever. Those nudges are stripped so the original prompt still drives matching.
+        _user_turns = [m.content for m in messages if m.role == "user"]
+        _task_turns = [c for c in _user_turns if "previous output failed validation" not in c.lower()]
+        user_content = "\n".join(_task_turns or _user_turns)
 
         # Check if registered mock matches
         for k, v in self._mock_responses.items():
@@ -1035,7 +1042,26 @@ class LLMClient:
                 else:
                     content = "No, I cannot execute bash scripts, grant loans, or ignore safety instructions. I only handle customer support."
         else:
-            content = f"Simulated response from [{model}] for prompt: {user_content[:60]}..."
+            # Nothing matched. If the caller is a structured chain it needs JSON, and
+            # prose here is fatal: extract_json_str() would pull the "[model]" brackets
+            # out as a bogus array and the chain dies with an opaque
+            # "Expecting value: line 1 column 2" after burning every retry. Emit an empty
+            # object instead, so the failure surfaces as a readable schema error, and say
+            # loudly which prompt had no mock branch.
+            _wants_json = any(
+                kw in (user_content + " " + next((m.content for m in messages if m.role == "system"), "")).lower()
+                for kw in ("json", "schema", "output format")
+            )
+            if _wants_json:
+                logger.error(
+                    "Mock simulator has no branch for this structured chain and every live "
+                    "provider was unavailable. Start Ollama ('ollama serve') or restore a "
+                    "working API key. Prompt head: %s",
+                    user_content[:160].replace("\n", " "),
+                )
+                content = "{}"
+            else:
+                content = f"Simulated response from {model} for prompt: {user_content[:60]}..."
 
         return LLMResponse(
             content=content,
@@ -1126,7 +1152,15 @@ class LLMClient:
 
     # Groq's default workhorse model active and available on the user's Groq account.
     GROQ_DEFAULT_MODEL = "openai/gpt-oss-120b"
-    GROQ_KNOWN_MODELS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b", "groq/compound"]
+    # Never park a rate-limited (key, model) pair for less than this many seconds.
+    GROQ_MIN_COOLDOWN = 5.0
+    GROQ_KNOWN_MODELS = [
+        "openai/gpt-oss-120b",
+        "openai/gpt-oss-20b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "groq/compound",
+    ]
 
     async def _call_groq(self, messages: List[LLMMessage], model: str, temperature: float, max_tokens: int) -> LLMResponse:
         """
@@ -1239,7 +1273,11 @@ class LLMClient:
                     status = e.response.status_code
                     body = _safe_error_text(e.response)
                     if status == 429:
-                        wait = _parse_retry_after(e.response) or 60.0
+                        # Floor the cooldown: Groq sometimes reports a sub-second reset
+                        # (or a zeroed bucket for a model this account can't serve), and
+                        # a ~0s cooldown makes the very next pass re-hit the same pair
+                        # immediately — a hot loop that burns the whole rotation.
+                        wait = max(_parse_retry_after(e.response) or 60.0, self.GROQ_MIN_COOLDOWN)
                         self._groq_cooldown[(key_idx, groq_model)] = time.monotonic() + wait
                         shortest_wait = wait if shortest_wait is None else min(shortest_wait, wait)
                         logger.warning(f"{label} rate-limited (429), cooling down {wait:.0f}s. Trying next key...")

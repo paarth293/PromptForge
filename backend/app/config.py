@@ -28,8 +28,11 @@ class Settings(BaseSettings):
     groq_api_key_5: str = Field(default="", alias="GROQ_API_KEY_5")
     # Extra Groq models to try (each model has its own rate-limit bucket) once the
     # primary model is rate-limited on every key. Comma-separated; blank disables.
+    # Only real Groq production model IDs belong here. A non-existent ID still gets a
+    # 429 from Groq's rate-limit layer (with a sub-second reset), so a typo'd model is
+    # never reported as "unknown" — it just burns the rotation on every single call.
     groq_fallback_models: str = Field(
-        default="openai/gpt-oss-20b,qwen/qwen3.8-27b,qwen/qwen3.6-27b",
+        default="openai/gpt-oss-20b,llama-3.3-70b-versatile,llama-3.1-8b-instant",
         alias="GROQ_FALLBACK_MODELS",
     )
     # If every Groq key/model is rate-limited but the shortest wait is at most this
